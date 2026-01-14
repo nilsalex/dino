@@ -3,7 +3,7 @@ from gymnasium import spaces
 import numpy as np
 from mss import mss
 import cv2
-import pyautogui
+from pynput.keyboard import Controller, Key
 from stable_baselines3 import DQN
 
 class DinoEnv(gym.Env):
@@ -14,6 +14,7 @@ class DinoEnv(gym.Env):
             low=0, high=255, shape=(4, 84, 84), dtype=np.uint8
         )
         self.sct = mss()
+        self.keyboard = Controller()
         self.game_region = {"top": 150, "left": 100, "width": 600, "height": 150}
         self.frame_stack = []
     
@@ -36,9 +37,11 @@ class DinoEnv(gym.Env):
     
     def step(self, action):
         if action == 1:
-            pyautogui.press("space")
+            self.keyboard.press(Key.space)
+            self.keyboard.release(Key.space)
         elif action == 2:
-            pyautogui.press("down")
+            self.keyboard.press(Key.down)
+            self.keyboard.release(Key.down)
         
         obs = self._get_obs()
         done = self._is_game_over()
@@ -47,7 +50,8 @@ class DinoEnv(gym.Env):
         return obs, reward, done, False, {}
     
     def reset(self, seed=None):
-        pyautogui.press("space")  # restart game
+        self.keyboard.press(Key.space)  # restart game
+        self.keyboard.release(Key.space)
         self.frame_stack = []
         return self._get_obs(), {}
 
