@@ -40,6 +40,24 @@
           # Build dependencies for compiling Python packages
           linuxHeaders  # Required by evdev (pynput dependency)
           rdma-core     # Required by CUDA libraries (PyTorch dependency)
+          pkg-config    # Required by pycairo
+          cairo         # Required by pycairo
+
+          # GStreamer and PipeWire for Wayland screen capture
+          gst_all_1.gstreamer
+          gst_all_1.gst-plugins-base
+          gst_all_1.gst-plugins-good
+          gst_all_1.gst-plugins-bad
+          pipewire
+          wireplumber
+
+          # GObject introspection for PyGObject
+          gobject-introspection
+          gtk3
+
+          # D-Bus for XDG Desktop Portal
+          dbus
+          dbus-glib
         ] ++ runtimeLibs;
 
         shellHook = ''
@@ -48,6 +66,16 @@
 
           # Critical: evdev searches for kernel headers in C_INCLUDE_PATH
           export C_INCLUDE_PATH="${pkgs.linuxHeaders}/include"
+
+          # GObject introspection for PyGObject
+          export GI_TYPELIB_PATH="${pkgs.gst_all_1.gstreamer.out}/lib/girepository-1.0:${pkgs.gst_all_1.gst-plugins-base}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
+
+          # GStreamer plugin path
+          export GST_PLUGIN_PATH="${pkgs.lib.makeSearchPath "lib/gstreamer-1.0" [
+            pkgs.gst_all_1.gst-plugins-base
+            pkgs.gst_all_1.gst-plugins-good
+            pkgs.gst_all_1.gst-plugins-bad
+          ]}"
 
           echo "Chrome Dino RL Agent development environment"
           echo "Python: $(python --version)"
