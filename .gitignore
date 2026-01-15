@@ -198,3 +198,8 @@ logs/
 
 .envrc
 .direnv/
+
+# Project-specific
+captured_frames/
+dino_tensorboard/
+*.zip
