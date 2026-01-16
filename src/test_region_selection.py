@@ -32,9 +32,7 @@ def test_region_selection():
     for i in range(5):
         frame = capture.grab(region)
         frames.append(frame)
-        print(
-            f"Frame {i + 1}: {frame.shape} (expected: ({region['height']}, {region['width']}, 3))"
-        )
+        print(f"Frame {i + 1}: {frame.shape} (expected: ({region['height']}, {region['width']}, 3))")
         time.sleep(0.5)
 
     print("\n✓ Region selection test complete!")
@@ -55,9 +53,7 @@ def test_region_selection():
         print(f"  Saved: {filename}")
 
     print("\n✓ Frames saved to ./captured_frames/")
-    print(
-        f"Region info: {region['width']}x{region['height']} at ({region['left']}, {region['top']})"
-    )
+    print(f"Region info: {region['width']}x{region['height']} at ({region['left']}, {region['top']})")
     print("\nYou can view the frames with your image viewer.")
 
 

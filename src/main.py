@@ -1,12 +1,15 @@
-import gymnasium as gym
-from gymnasium import spaces
-import numpy as np
+"""Chrome Dino Game RL Agent with screen capture support."""
+
+import os
+import sys
+
 import cv2
+import gymnasium as gym
+import numpy as np
+from gymnasium import spaces
+from PIL import Image
 from pynput.keyboard import Controller, Key
 from stable_baselines3 import DQN
-import sys
-import os
-from PIL import Image
 
 
 class ScreenCapture:
@@ -30,9 +33,7 @@ class ScreenCapture:
             print("  1. PipeWire running")
             print("  2. xdg-desktop-portal installed")
             print("  3. Your compositor's portal backend installed")
-            print(
-                "\nAlternatively, run under XWayland: env -u WAYLAND_DISPLAY python main.py"
-            )
+            print("\nAlternatively, run under XWayland: env -u WAYLAND_DISPLAY python main.py")
             sys.exit(1)
 
     def _detect_backend(self):
@@ -47,15 +48,14 @@ class ScreenCapture:
                 import gi
 
                 gi.require_version("Gst", "1.0")
-                import dbus  # noqa: F401
+                import dbus  # noqa: F401, pylint: disable=unused-import
 
                 return "pipewire"
             except (ImportError, ValueError) as e:
                 print(f"PipeWire backend not available: {e}")
                 return "wayland_fallback"
-        else:
-            # Use mss for X11, Windows, macOS
-            return "mss"
+        # Use mss for X11, Windows, macOS
+        return "mss"
 
     def grab(self, region):
         """Capture a screen region. Returns a numpy array in BGR format."""
@@ -93,11 +93,7 @@ class ScreenCapture:
 
             # Use monitor 1 (primary monitor) instead of 0 (all monitors combined)
             # Monitor 0 in mss is a virtual screen of all monitors combined
-            monitor = (
-                self.sct.monitors[1]
-                if len(self.sct.monitors) > 1
-                else self.sct.monitors[0]
-            )
+            monitor = self.sct.monitors[1] if len(self.sct.monitors) > 1 else self.sct.monitors[0]
             print(f"\nUsing monitor: {monitor}")
             full_screen = self.grab(monitor)
 
@@ -154,9 +150,7 @@ class ScreenCapture:
             print(f"Using tkinter screen dimensions: {display_width}x{display_height}")
 
         # Scale image to display dimensions
-        display_image = pil_image.resize(
-            (display_width, display_height), Image.Resampling.LANCZOS
-        )
+        display_image = pil_image.resize((display_width, display_height), Image.Resampling.LANCZOS)
 
         # State for drag-to-draw rectangle selection
         start_pos = None  # Starting position in display coordinates
@@ -185,9 +179,7 @@ class ScreenCapture:
             x1, y1 = start_pos
             x2, y2 = event.x, event.y
 
-            current_rect = canvas.create_rectangle(
-                x1, y1, x2, y2, outline="yellow", width=4, tags="selection"
-            )
+            current_rect = canvas.create_rectangle(x1, y1, x2, y2, outline="yellow", width=4, tags="selection")
 
             # Calculate and display dimensions in actual capture coordinates
             scale_x = capture_width / display_width
@@ -268,9 +260,7 @@ class ScreenCapture:
         # Force window manager to process the geometry
         root.update_idletasks()
 
-        canvas = tk.Canvas(
-            root, width=display_width, height=display_height, highlightthickness=0
-        )
+        canvas = tk.Canvas(root, width=display_width, height=display_height, highlightthickness=0)
         canvas.pack()
 
         # Display the scaled image
@@ -281,9 +271,7 @@ class ScreenCapture:
         root.photo = photo
 
         # Draw instructions overlay at top
-        canvas.create_rectangle(
-            0, 0, display_width, 120, fill="black", stipple="gray50"
-        )
+        canvas.create_rectangle(0, 0, display_width, 120, fill="black", stipple="gray50")
         canvas.create_text(
             display_width // 2,
             40,
@@ -314,9 +302,7 @@ class ScreenCapture:
             return None
 
         region = final_region[0]
-        print(
-            f"\n✓ Region selected: {region['width']}x{region['height']} at ({region['left']}, {region['top']})"
-        )
+        print(f"\n✓ Region selected: {region['width']}x{region['height']} at ({region['left']}, {region['top']})")
         return region
 
 
@@ -324,9 +310,7 @@ class DinoEnv(gym.Env):
     def __init__(self, select_region=False, game_over_threshold=0.99):
         super().__init__()
         self.action_space = spaces.Discrete(3)  # nothing, jump, duck
-        self.observation_space = spaces.Box(
-            low=0, high=255, shape=(4, 84, 84), dtype=np.uint8
-        )
+        self.observation_space = spaces.Box(low=0, high=255, shape=(4, 84, 84), dtype=np.uint8)
         self.sct = ScreenCapture()
         self.keyboard = Controller()
 
@@ -352,9 +336,7 @@ class DinoEnv(gym.Env):
         self.game_over_threshold = game_over_threshold
         self.previous_frames = []  # Store last few frames for comparison
         self.num_frames_to_compare = 3  # Check if last 3 frames are identical
-        self.game_over_check_region = (
-            0.6  # Use left 60% of frame to avoid reload button
-        )
+        self.game_over_check_region = 0.6  # Use left 60% of frame to avoid reload button
 
     def _get_obs(self):
         img = self.sct.grab(self.game_region)

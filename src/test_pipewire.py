@@ -49,9 +49,7 @@ def test_pipewire():
     print()
     print("4. Checking XDG Desktop Portal...")
     try:
-        portal = bus.get_object(
-            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"
-        )
+        portal = bus.get_object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
         screencast = dbus.Interface(portal, "org.freedesktop.portal.ScreenCast")  # noqa: F841
         print("   ✓ XDG Desktop Portal accessible")
     except Exception as e:

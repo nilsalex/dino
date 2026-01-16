@@ -6,34 +6,42 @@
 - This is a strict requirement for this project
 
 ## Common Commands
-- Install dependencies: `uv sync`
-- Install with all extras: `uv sync --all-extras`
+
+This project uses a Makefile for common tasks. **ALWAYS** use these make commands:
+
+- **Install dependencies**: `make install`
+- **Format code**: `make format`
+- **Lint code**: `make lint`
+- **Lock dependencies**: `make lock`
+
+### Direct UV Commands (if needed)
 - Add a package: `uv add <package>`
 - Add a dev dependency: `uv add --dev <package>`
 - Run Python scripts: `uv run python <script>`
 - Run commands in environment: `uv run <command>`
 
 ## Linting and Formatting
-This project uses `ruff`, `mypy`, and `pylint` for code quality:
-
-- **Format code**: `uv run ruff format <file>`
-- **Lint code**: `uv run ruff check <file>`
-- **Type check**: `uv run mypy <file>`
-- **Full lint**: `uv run pylint <file>`
 
 **Before committing code changes**, run:
 ```bash
-uv run ruff format .
-uv run ruff check --fix .
+make format
+make lint
 ```
+
+This will:
+1. Format code with ruff
+2. Fix linting issues automatically with ruff
+3. Run pylint for code quality checks
+4. Run mypy for type checking
 
 ## Installation Instructions
 When providing installation instructions to the user, always use:
 ```bash
-uv sync
+make install
 ```
 
 NOT:
 ```bash
 pip install -e .
+uv sync
 ```

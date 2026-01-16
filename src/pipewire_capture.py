@@ -3,6 +3,7 @@ PipeWire screen capture for Wayland using XDG Desktop Portal.
 
 Based on: https://github.com/columbarius/xdg-desktop-portal-testscripts
 """
+
 # ruff: noqa: E402
 import gi
 
@@ -58,9 +59,7 @@ class PipeWireCapture:
         while self.latest_frame is None:
             time.sleep(0.1)
             if time.time() - start > timeout:
-                raise RuntimeError(
-                    "Timeout waiting for first frame. Did you approve screen sharing?"
-                )
+                raise RuntimeError("Timeout waiting for first frame. Did you approve screen sharing?")
 
         print(f"✓ PipeWire capture initialized! Frame shape: {self.latest_frame.shape}")
 
@@ -70,10 +69,7 @@ class PipeWireCapture:
             import dbus
             from dbus.mainloop.glib import DBusGMainLoop
         except ImportError:
-            raise ImportError(
-                "dbus-python is required for PipeWire capture. "
-                "Install with: pip install dbus-python"
-            )
+            raise ImportError("dbus-python is required for PipeWire capture. Install with: pip install dbus-python")
 
         # Setup D-Bus
         DBusGMainLoop(set_as_default=True)
@@ -82,14 +78,10 @@ class PipeWireCapture:
         # Generate unique session handle
         sender_name = bus.get_unique_name()[1:].replace(".", "_")
         token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
-        session_handle = (
-            f"/org/freedesktop/portal/desktop/session/{sender_name}/{token}"
-        )
+        session_handle = f"/org/freedesktop/portal/desktop/session/{sender_name}/{token}"
 
         # Get portal interface
-        portal = bus.get_object(
-            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"
-        )
+        portal = bus.get_object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
         screencast = dbus.Interface(portal, "org.freedesktop.portal.ScreenCast")
 
         # Create session
@@ -139,9 +131,7 @@ class PipeWireCapture:
             else:
                 select_response["error"] = "User cancelled source selection"
 
-        select_token = "".join(
-            random.choices(string.ascii_letters + string.digits, k=10)
-        )
+        select_token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
         select_request = screencast.SelectSources(
             session_handle,
             {
@@ -195,9 +185,7 @@ class PipeWireCapture:
             else:
                 start_response["error"] = "User cancelled or error occurred"
 
-        start_token = "".join(
-            random.choices(string.ascii_letters + string.digits, k=10)
-        )
+        start_token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
         request = screencast.Start(session_handle, "", {"handle_token": start_token})
         bus.add_signal_receiver(
             start_response_handler,
@@ -236,14 +224,11 @@ class PipeWireCapture:
         # The UnixFd object wraps the actual file descriptor
         self.fd = fd_obj.take()  # take() extracts the FD and transfers ownership
 
-        print(
-            f"✓ Screen share approved! PipeWire node ID: {self.node_id}, FD: {self.fd}"
-        )
+        print(f"✓ Screen share approved! PipeWire node ID: {self.node_id}, FD: {self.fd}")
 
         # Display monitor metadata if available
-        print(
-            f"  Stream metadata keys: {list(self.stream_metadata.keys()) if self.stream_metadata else 'None'}"
-        )
+        metadata_keys = list(self.stream_metadata.keys()) if self.stream_metadata else "None"
+        print(f"  Stream metadata keys: {metadata_keys}")
         if self.stream_metadata:
             position = self.stream_metadata.get("position")
             size = self.stream_metadata.get("size")
@@ -300,9 +285,7 @@ class PipeWireCapture:
             success, map_info = buffer.map(Gst.MapFlags.READ)
             if success:
                 # Convert to numpy array (BGR format)
-                frame = np.ndarray(
-                    shape=(height, width, 3), dtype=np.uint8, buffer=map_info.data
-                )
+                frame = np.ndarray(shape=(height, width, 3), dtype=np.uint8, buffer=map_info.data)
 
                 # Store latest frame
                 with self.frame_lock:
@@ -368,9 +351,7 @@ class PipeWireCapture:
         # Convert dbus types to Python ints
         # position is a tuple (x, y), size is a tuple (width, height)
         return {
-            "left": int(position[0])
-            if isinstance(position, (tuple, list))
-            else int(position),
+            "left": int(position[0]) if isinstance(position, (tuple, list)) else int(position),
             "top": int(position[1]) if isinstance(position, (tuple, list)) else 0,
             "width": int(size[0]) if isinstance(size, (tuple, list)) else int(size),
             "height": int(size[1]) if isinstance(size, (tuple, list)) else 0,

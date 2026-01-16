@@ -109,9 +109,7 @@ def test_no_false_positives():
     if false_positives == 0:
         print("✓ No false positives! Game over detection is working correctly.")
     else:
-        print(
-            "✗ False positives detected. Consider lowering threshold or increasing num_frames_to_compare."
-        )
+        print("✗ False positives detected. Consider lowering threshold or increasing num_frames_to_compare.")
 
 
 def manual_test():

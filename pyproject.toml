@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "dino"
 version = "0.1.0"
 description = "Chrome Dino Game RL Agent"
-requires-python = ">=3.8"
+requires-python = ">=3.14"
 dependencies = [
     "gymnasium>=0.29.0",
     "numpy>=1.24.0",
@@ -28,11 +28,11 @@ dev = [
 
 [tool.black]
 line-length = 88
-target-version = ["py38", "py39", "py310", "py311"]
+target-version = ["py314"]
 
 [tool.ruff]
-line-length = 88
-target-version = "py38"
+line-length = 120
+target-version = "py314"
 
 [tool.setuptools]
 py-modules = ["main", "pipewire_capture"]
