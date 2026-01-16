@@ -144,56 +144,100 @@ class ScreenCapture:
         # Scale image to display dimensions
         display_image = pil_image.resize((display_width, display_height), Image.Resampling.LANCZOS)
 
-        clicks = []
-        display_clicks = []  # Store display coordinates for drawing
+        # State for drag-to-draw rectangle selection
+        start_pos = None  # Starting position in display coordinates
+        current_rect = None  # Canvas rectangle ID for live preview
+        current_text = None  # Canvas text ID for dimensions
         cancelled = [False]
+        final_region = [None]  # Store final selected region
 
-        def on_click(event):
-            if len(clicks) < 2:
-                # Get widget coords (these are in the display image coordinate system)
-                widget_x, widget_y = event.x, event.y
+        def on_button_press(event):
+            nonlocal start_pos, current_rect, current_text
+            # Record starting position
+            start_pos = (event.x, event.y)
 
-                # Map widget coordinates (in display image space) to original capture space
-                # using ratio/percentage mapping
-                scale_x = capture_width / display_width
-                scale_y = capture_height / display_height
+        def on_mouse_drag(event):
+            nonlocal current_rect, current_text
+            if start_pos is None:
+                return
 
-                original_x = int(widget_x * scale_x) + monitor_left
-                original_y = int(widget_y * scale_y) + monitor_top
+            # Delete previous rectangle and text if they exist
+            if current_rect:
+                canvas.delete(current_rect)
+            if current_text:
+                canvas.delete(current_text)
 
-                clicks.append((original_x, original_y))
-                display_clicks.append((widget_x, widget_y))
+            # Draw new rectangle from start to current position
+            x1, y1 = start_pos
+            x2, y2 = event.x, event.y
 
-                print(f"Point {len(clicks)}: ({original_x}, {original_y})")
+            current_rect = canvas.create_rectangle(
+                x1, y1, x2, y2,
+                outline='yellow',
+                width=4,
+                tags='selection'
+            )
 
-                # Use widget coords for drawing on canvas
-                display_x, display_y = widget_x, widget_y
+            # Calculate and display dimensions in actual capture coordinates
+            scale_x = capture_width / display_width
+            scale_y = capture_height / display_height
 
-                # Draw crosshairs at display position for better precision
-                canvas.create_line(display_x-20, display_y, display_x+20, display_y, fill='red', width=2)
-                canvas.create_line(display_x, display_y-20, display_x, display_y+20, fill='red', width=2)
-                canvas.create_oval(display_x-15, display_y-15, display_x+15, display_y+15,
-                                 fill='red', outline='yellow', width=3)
-                canvas.create_text(display_x, display_y-30, text=f"Point {len(clicks)}",
-                                 fill='yellow', font=('Arial', 16, 'bold'))
+            actual_x1 = int(x1 * scale_x)
+            actual_y1 = int(y1 * scale_y)
+            actual_x2 = int(x2 * scale_x)
+            actual_y2 = int(y2 * scale_y)
 
-                if len(clicks) == 2:
-                    # Draw rectangle using display coordinates
-                    disp_x1, disp_y1 = display_clicks[0]
-                    disp_x2, disp_y2 = display_clicks[1]
+            w = abs(actual_x2 - actual_x1)
+            h = abs(actual_y2 - actual_y1)
 
-                    canvas.create_rectangle(disp_x1, disp_y1, disp_x2, disp_y2, outline='yellow', width=4)
+            mid_x = (x1 + x2) // 2
+            mid_y = (y1 + y2) // 2
 
-                    # Show dimensions using actual capture coordinates
-                    x1, y1 = clicks[0]
-                    x2, y2 = clicks[1]
-                    w = abs(x2 - x1)
-                    h = abs(y2 - y1)
-                    mid_x = (disp_x1 + disp_x2) // 2
-                    mid_y = (disp_y1 + disp_y2) // 2
-                    canvas.create_text(mid_x, mid_y, text=f"{w}x{h}", fill='yellow', font=('Arial', 18, 'bold'))
+            current_text = canvas.create_text(
+                mid_x, mid_y,
+                text=f"{w}x{h}",
+                fill='yellow',
+                font=('Arial', 18, 'bold'),
+                tags='selection'
+            )
 
-                    root.after(800, root.quit)
+        def on_button_release(event):
+            nonlocal start_pos, final_region
+            if start_pos is None:
+                return
+
+            # Calculate final region in actual screen coordinates
+            x1, y1 = start_pos
+            x2, y2 = event.x, event.y
+
+            scale_x = capture_width / display_width
+            scale_y = capture_height / display_height
+
+            actual_x1 = int(x1 * scale_x) + monitor_left
+            actual_y1 = int(y1 * scale_y) + monitor_top
+            actual_x2 = int(x2 * scale_x) + monitor_left
+            actual_y2 = int(y2 * scale_y) + monitor_top
+
+            left = min(actual_x1, actual_x2)
+            top = min(actual_y1, actual_y2)
+            right = max(actual_x1, actual_x2)
+            bottom = max(actual_y1, actual_y2)
+
+            width = right - left
+            height = bottom - top
+
+            if width > 0 and height > 0:
+                final_region[0] = {
+                    "left": left,
+                    "top": top,
+                    "width": width,
+                    "height": height
+                }
+                print(f"\nRegion selected: {width}x{height} at ({left}, {top})")
+                root.after(500, root.quit)
+            else:
+                print("\nInvalid selection (too small)")
+                start_pos = None
 
         def on_escape(event):
             cancelled[0] = True
@@ -226,7 +270,7 @@ class ScreenCapture:
         canvas.create_rectangle(0, 0, display_width, 120, fill='black', stipple='gray50')
         canvas.create_text(
             display_width // 2, 40,
-            text="Click TOP-LEFT corner, then BOTTOM-RIGHT corner",
+            text="Click and drag to select region",
             fill='yellow',
             font=('Arial', 24, 'bold')
         )
@@ -237,40 +281,22 @@ class ScreenCapture:
             font=('Arial', 16)
         )
 
-        canvas.bind('<Button-1>', on_click)
+        # Bind mouse events for drag-to-draw interaction
+        canvas.bind('<ButtonPress-1>', on_button_press)
+        canvas.bind('<B1-Motion>', on_mouse_drag)
+        canvas.bind('<ButtonRelease-1>', on_button_release)
         root.bind('<Escape>', on_escape)
 
-        print("\nWaiting for clicks...")
+        print("\nWaiting for selection...")
         root.mainloop()
         root.destroy()
 
-        if cancelled[0] or len(clicks) != 2:
+        if cancelled[0] or final_region[0] is None:
             print("\n✗ Selection cancelled")
             return None
 
-        x1, y1 = clicks[0]
-        x2, y2 = clicks[1]
-
-        left = min(x1, x2)
-        top = min(y1, y2)
-        right = max(x1, x2)
-        bottom = max(y1, y2)
-
-        width = right - left
-        height = bottom - top
-
-        if width <= 0 or height <= 0:
-            print("\n✗ Invalid selection")
-            return None
-
-        region = {
-            "left": left,
-            "top": top,
-            "width": width,
-            "height": height
-        }
-
-        print(f"\n✓ Region selected: {width}x{height} at ({left}, {top})")
+        region = final_region[0]
+        print(f"\n✓ Region selected: {region['width']}x{region['height']} at ({region['left']}, {region['top']})")
         return region
 
 class DinoEnv(gym.Env):

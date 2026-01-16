@@ -22,6 +22,8 @@ def test_region_selection():
     print(f"\nSelected region: {region}")
     print("\nCapturing 5 frames from the selected region...")
 
+    time.sleep(0.5)
+
     # Test capturing frames from the selected region
     print(f"\nAttempting to capture from region: {region}")
     frames = []
