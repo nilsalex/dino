@@ -3,6 +3,7 @@
 Test the interactive region selection feature.
 """
 
+import hashlib
 import time
 
 import cv2
@@ -32,12 +33,23 @@ def test_region_selection() -> None:
     # Test capturing frames from the selected region
     print(f"\nAttempting to capture from region: {region}")
     frames = []
+    checksums = []
     for i in range(5):
         frame = capture.grab(region)
         assert frame is not None
         frames.append(frame)
-        print(f"Frame {i + 1}: {frame.shape} (expected: ({region['height']}, {region['width']}, 3))")
+        checksum = hashlib.md5(frame.tobytes()).hexdigest()[:8]
+        checksums.append(checksum)
+        print(
+            f"Frame {i + 1}: {frame.shape} checksum={checksum} (expected: ({region['height']}, {region['width']}, 3))"
+        )
         time.sleep(0.5)
+
+    # Check if frames are identical
+    unique_checksums = len(set(checksums))
+    print(f"\nUnique frames: {unique_checksums}/5")
+    if unique_checksums == 1:
+        print("⚠ WARNING: All frames are identical!")
 
     print("\n✓ Region selection test complete!")
     print(f"Final region: {region}")

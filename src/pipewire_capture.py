@@ -253,11 +253,12 @@ class PipeWireCapture:
             raise RuntimeError("Must request screen share before creating pipeline")
 
         # Pipeline: pipewiresrc fd=X path=Y ! videoconvert ! video/x-raw,format=BGR ! appsink
+        # CRITICAL: emit-signals=true and drop=false to keep callback flowing
         pipeline_str = (
             f"pipewiresrc fd={self.fd} path={self.node_id} "
             "! videoconvert "
             "! video/x-raw,format=BGR "
-            "! appsink name=sink emit-signals=true sync=false max-buffers=1 drop=true"
+            "! appsink name=sink emit-signals=true sync=false max-buffers=1 drop=false"
         )
 
         self.pipeline = Gst.parse_launch(pipeline_str)
@@ -269,7 +270,7 @@ class PipeWireCapture:
         if not self.appsink:
             raise RuntimeError("Could not get appsink from pipeline")
 
-        # Connect to new-sample signal
+        # Connect to new-sample signal to continuously update latest_frame
         self.appsink.connect("new-sample", self._on_new_sample)
 
         # Setup bus messages
@@ -279,28 +280,41 @@ class PipeWireCapture:
         bus.connect("message", self._on_bus_message)
 
     def _on_new_sample(self, appsink: Gst.Element) -> Gst.FlowReturn:
-        """Callback when new frame is available."""
+        """Callback when new frame is available - MUST consume sample to keep pipeline flowing."""
+        print("[DEBUG] _on_new_sample called")
         sample = appsink.emit("pull-sample")
-        if sample:
-            buffer = sample.get_buffer()
-            caps = sample.get_caps()
+        if not sample:
+            print("[DEBUG] emit returned None!")
+            return Gst.FlowReturn.ERROR
 
-            # Get frame dimensions
-            structure = caps.get_structure(0)
-            width = structure.get_value("width")
-            height = structure.get_value("height")
+        buffer = sample.get_buffer()
+        caps = sample.get_caps()
 
-            # Extract data
-            success, map_info = buffer.map(Gst.MapFlags.READ)
-            if success:
-                # Convert to numpy array (BGR format)
-                frame = np.ndarray(shape=(height, width, 3), dtype=np.uint8, buffer=map_info.data)
+        # Get frame dimensions
+        structure = caps.get_structure(0)
+        width = structure.get_value("width")
+        height = structure.get_value("height")
 
-                # Store latest frame
-                with self.frame_lock:
-                    self.latest_frame = frame.copy()
+        # Map buffer and copy data
+        success, map_info = buffer.map(Gst.MapFlags.READ)
+        if not success:
+            print("[DEBUG] buffer.map failed!")
+            return Gst.FlowReturn.ERROR
 
-                buffer.unmap(map_info)
+        # Create view and IMMEDIATELY copy while buffer is mapped
+        frame_view = np.ndarray(shape=(height, width, 3), dtype=np.uint8, buffer=map_info.data)
+        frame_copy = frame_view.copy()
+        buffer.unmap(map_info)
+
+        # Store latest frame
+        with self.frame_lock:
+            old_sum = self.latest_frame.sum() if self.latest_frame is not None else 0
+            self.latest_frame = frame_copy
+            new_sum = frame_copy.sum()
+            if old_sum != new_sum:
+                print(f"[DEBUG] Frame updated: sum changed from {old_sum} to {new_sum}")
+            else:
+                print(f"[DEBUG] Frame unchanged: sum={new_sum}")
 
         return Gst.FlowReturn.OK
 
@@ -382,7 +396,6 @@ class PipeWireCapture:
         with self.frame_lock:
             if self.latest_frame is None:
                 return None
-
             frame = self.latest_frame.copy()
 
         # Crop to region if specified

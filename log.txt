@@ -1,0 +1,58 @@
+Testing interactive region selection...
+Using screen capture backend: pipewire
+Initializing PipeWire screen capture...
+NOTE: You will need to approve screen sharing in the system dialog.
+Waiting for screen share approval...
+✓ Screen share approved! PipeWire node ID: 134, FD: 10
+  Stream metadata keys: [dbus.String('position'), dbus.String('size'), dbus.String('source_type')]
+  Monitor position: dbus.Struct((dbus.Int32(1477), dbus.Int32(0)), signature=None, variant_level=1) (type: <class 'dbus.Struct'>)
+  Monitor size: dbus.Struct((dbus.Int32(3840), dbus.Int32(1600)), signature=None, variant_level=1) (type: <class 'dbus.Struct'>)
+✓ Capture pipeline started
+Waiting for first frame...
+✓ PipeWire capture initialized! Frame shape: (1600, 3840, 3)
+
+============================================================
+INTERACTIVE REGION SELECTION
+============================================================
+Capturing screen...
+
+Debug: monitor_info = {'left': 1477, 'top': 0, 'width': 3840, 'height': 1600}
+Using monitor at position (1477, 0), size 3840x1600
+Captured screen: 3840x1600
+Using portal monitor dimensions: 3840x1600
+Setting window geometry: 3840x1600+1477+0
+
+Waiting for selection...
+
+Region selected: 740x510 at (2843, 514)
+
+✓ Region selected: 740x510 at (2843, 514)
+
+Selected region: {'left': 2843, 'top': 514, 'width': 740, 'height': 510}
+
+Capturing 5 frames from the selected region...
+
+Attempting to capture from region: {'left': 2843, 'top': 514, 'width': 740, 'height': 510}
+Frame 1: (510, 740, 3) checksum=78d89797 (expected: (510, 740, 3))
+Frame 2: (510, 740, 3) checksum=78d89797 (expected: (510, 740, 3))
+Frame 3: (510, 740, 3) checksum=78d89797 (expected: (510, 740, 3))
+Frame 4: (510, 740, 3) checksum=78d89797 (expected: (510, 740, 3))
+Frame 5: (510, 740, 3) checksum=78d89797 (expected: (510, 740, 3))
+
+Unique frames: 1/5
+⚠ WARNING: All frames are identical!
+
+✓ Region selection test complete!
+Final region: {'left': 2843, 'top': 514, 'width': 740, 'height': 510}
+
+Saving frames to disk...
+  Saved: captured_frames/frame_1.png
+  Saved: captured_frames/frame_2.png
+  Saved: captured_frames/frame_3.png
+  Saved: captured_frames/frame_4.png
+  Saved: captured_frames/frame_5.png
+
+✓ Frames saved to ./captured_frames/
+Region info: 740x510 at (2843, 514)
+
+You can view the frames with your image viewer.
