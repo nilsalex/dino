@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import cv2
 import gymnasium as gym
@@ -24,7 +24,7 @@ class ScreenCapture:
         if self.backend == "pipewire":
             from pipewire_capture import PipeWireCapture
 
-            self.sct = PipeWireCapture()
+            self.sct: Any = PipeWireCapture()
         elif self.backend == "mss":
             from mss import mss
 
@@ -50,7 +50,7 @@ class ScreenCapture:
                 import gi
 
                 gi.require_version("Gst", "1.0")
-                import dbus  # noqa: F401, pylint: disable=unused-import
+                import dbus  # noqa: F401
 
                 return "pipewire"
             except (ImportError, ValueError) as e:
@@ -59,7 +59,7 @@ class ScreenCapture:
         # Use mss for X11, Windows, macOS
         return "mss"
 
-    def grab(self, region: Dict[str, int]) -> Optional[NDArray[np.uint8]]:
+    def grab(self, region: dict[str, int]) -> NDArray[np.uint8] | None:
         """Capture a screen region. Returns a numpy array in BGR format."""
         if self.backend == "pipewire":
             # PipeWireCapture.grab returns BGR numpy array
@@ -70,7 +70,7 @@ class ScreenCapture:
             return np.array(img)[:, :, :3]
         return None
 
-    def select_region_interactive(self) -> Optional[Dict[str, int]]:
+    def select_region_interactive(self) -> dict[str, int] | None:
         """
         Let user select a screen region by clicking two points on the screen.
 
@@ -78,6 +78,7 @@ class ScreenCapture:
             dict: Region with keys 'top', 'left', 'width', 'height', or None if cancelled
         """
         import tkinter as tk
+
         from PIL import ImageTk
 
         print("\n" + "=" * 60)
@@ -91,6 +92,9 @@ class ScreenCapture:
         if self.backend == "mss":
             # Show available monitors
             print("\nAvailable monitors:")
+            from mss.base import MSSBase
+
+            assert isinstance(self.sct, MSSBase)
             for i, mon in enumerate(self.sct.monitors):
                 print(f"  Monitor {i}: {mon}")
 
@@ -271,7 +275,7 @@ class ScreenCapture:
         canvas.create_image(0, 0, image=photo, anchor="nw")
 
         # Keep reference to prevent garbage collection
-        root.photo = photo
+        root.photo = photo  # type: ignore[attr-defined]
 
         # Draw instructions overlay at top
         canvas.create_rectangle(0, 0, display_width, 120, fill="black", stipple="gray50")
@@ -323,7 +327,7 @@ class DinoEnv(gym.Env):  # type: ignore[misc]
         if select_region:
             region = self.sct.select_region_interactive()
             if region:
-                self.game_region: Dict[str, int] = region
+                self.game_region: dict[str, int] = region
             else:
                 print("Selection cancelled, using default region")
                 self.game_region = {
@@ -335,18 +339,19 @@ class DinoEnv(gym.Env):  # type: ignore[misc]
         else:
             self.game_region = {"top": 150, "left": 100, "width": 600, "height": 150}
 
-        self.frame_stack: list[NDArray[np.uint8]] = []
+        self.frame_stack: list[NDArray[Any]] = []
 
         # Game over detection
         self.game_over_threshold: float = game_over_threshold
-        self.previous_frames: list[NDArray[np.uint8]] = []  # Store last few frames for comparison
+        self.previous_frames: list[NDArray[Any]] = []  # Store last few frames for comparison
         self.num_frames_to_compare: int = 3  # Check if last 3 frames are identical
         self.game_over_check_region: float = 0.6  # Use left 60% of frame to avoid reload button
 
     def _get_obs(self) -> NDArray[np.uint8]:
         img = self.sct.grab(self.game_region)
-        gray: NDArray[np.uint8] = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        resized: NDArray[np.uint8] = cv2.resize(gray, (84, 84))
+        assert img is not None
+        gray: NDArray[Any] = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        resized: NDArray[Any] = cv2.resize(gray, (84, 84))
 
         self.frame_stack.append(resized)
         if len(self.frame_stack) > 4:
@@ -406,7 +411,7 @@ class DinoEnv(gym.Env):  # type: ignore[misc]
         # All consecutive frames are nearly identical -> game over
         return True
 
-    def step(self, action: int) -> Tuple[NDArray[np.uint8], float, bool, bool, Dict[str, Any]]:
+    def step(self, action: int) -> tuple[NDArray[np.uint8], float, bool, bool, dict[str, Any]]:
         if action == 1:
             self.keyboard.press(Key.space)
             self.keyboard.release(Key.space)
@@ -421,8 +426,8 @@ class DinoEnv(gym.Env):  # type: ignore[misc]
         return obs, reward, done, False, {}
 
     def reset(
-        self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
-    ) -> Tuple[NDArray[np.uint8], Dict[str, Any]]:
+        self, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[NDArray[np.uint8], dict[str, Any]]:
         # Clear game over detection state
         self.previous_frames = []
 

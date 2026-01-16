@@ -47,7 +47,7 @@ def test_game_over_detection() -> None:
             action = env.action_space.sample()
 
             # Execute action
-            obs, reward, done, _truncated, info = env.step(action)
+            _obs, reward, done, _truncated, _info = env.step(action)
 
             step_count += 1
 
@@ -92,13 +92,13 @@ def test_no_false_positives() -> None:
     false_positives = 0
     for step in range(100):
         # Take no action (action=0)
-        obs, _reward, done, _truncated, info = env.step(0)
+        _obs, _reward, done, _truncated, _info = env.step(0)
 
         if done:
             false_positives += 1
             print(f"  ! False positive at step {step}")
             # Reset to continue test
-            obs, info = env.reset()
+            _obs, _info = env.reset()
 
         if step % 20 == 0:
             print(f"  Step {step}/100...")
@@ -134,7 +134,7 @@ def manual_test() -> None:
         step = 0
         while True:
             # Take no action, just monitor
-            obs, _reward, done, _truncated, info = env.step(0)
+            _obs, _reward, done, _truncated, _info = env.step(0)
 
             step += 1
 
@@ -144,7 +144,7 @@ def manual_test() -> None:
                 print(f"{'=' * 60}")
                 print("Restarting in 2 seconds...")
                 time.sleep(2)
-                obs, info = env.reset()
+                _obs, _info = env.reset()
                 step = 0
                 print("Game restarted. Monitoring again...")
             elif step % 30 == 0:

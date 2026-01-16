@@ -4,7 +4,6 @@ PipeWire screen capture for Wayland using XDG Desktop Portal.
 Based on: https://github.com/columbarius/xdg-desktop-portal-testscripts
 """
 
-# pylint: disable=wrong-import-position,wrong-import-order
 # gi.require_version must be called before importing from gi.repository
 # ruff: noqa: E402
 
@@ -16,7 +15,7 @@ import random
 import string
 import threading
 import time
-from typing import Dict, Optional
+from typing import Any
 
 import numpy as np
 from gi.repository import GLib, Gst
@@ -35,15 +34,15 @@ class PipeWireCapture:
 
     def __init__(self) -> None:
         """Initialize PipeWire capture. User permission will be requested."""
-        self.pipeline: Optional[Gst.Pipeline] = None
-        self.appsink: Optional[Gst.Element] = None
-        self.latest_frame: Optional[np.ndarray] = None
+        self.pipeline: Gst.Element | None = None
+        self.appsink: Gst.Element | None = None
+        self.latest_frame: np.ndarray | None = None
         self.frame_lock: threading.Lock = threading.Lock()
-        self.mainloop: Optional[GLib.MainLoop] = None
-        self.mainloop_thread: Optional[threading.Thread] = None
-        self.node_id: Optional[int] = None
-        self.fd: Optional[int] = None
-        self.stream_metadata: Dict[str, any] = {}  # Store monitor position, size, etc.
+        self.mainloop: GLib.MainLoop | None = None
+        self.mainloop_thread: threading.Thread | None = None
+        self.node_id: int | None = None
+        self.fd: int | None = None
+        self.stream_metadata: dict[str, Any] = {}  # Store monitor position, size, etc.
 
         print("Initializing PipeWire screen capture...")
         print("NOTE: You will need to approve screen sharing in the system dialog.")
@@ -262,9 +261,11 @@ class PipeWireCapture:
         )
 
         self.pipeline = Gst.parse_launch(pipeline_str)
+        assert self.pipeline is not None
 
         # Get appsink
-        self.appsink = self.pipeline.get_by_name("sink")
+        # Note: get_by_name exists on pipeline elements but type stubs are incomplete
+        self.appsink = self.pipeline.get_by_name("sink")  # type: ignore[attr-defined]
         if not self.appsink:
             raise RuntimeError("Could not get appsink from pipeline")
 
@@ -273,6 +274,7 @@ class PipeWireCapture:
 
         # Setup bus messages
         bus = self.pipeline.get_bus()
+        assert bus is not None
         bus.add_signal_watch()
         bus.connect("message", self._on_bus_message)
 
@@ -322,6 +324,7 @@ class PipeWireCapture:
 
     def _start_capture(self) -> None:
         """Start the GStreamer pipeline in a background thread."""
+        assert self.pipeline is not None
         # Set pipeline to playing
         ret = self.pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
@@ -338,7 +341,7 @@ class PipeWireCapture:
 
         print("✓ Capture pipeline started")
 
-    def get_monitor_info(self) -> Optional[Dict]:
+    def get_monitor_info(self) -> dict | None:
         """
         Get information about the captured monitor.
 
@@ -364,7 +367,7 @@ class PipeWireCapture:
             "height": int(size[1]) if isinstance(size, (tuple, list)) else 0,
         }
 
-    def grab(self, region: Optional[Dict] = None) -> Optional[np.ndarray]:
+    def grab(self, region: dict | None = None) -> np.ndarray | None:
         """
         Grab the latest frame.
 

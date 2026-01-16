@@ -31,8 +31,7 @@ make lint
 This will:
 1. Format code with ruff
 2. Fix linting issues automatically with ruff
-3. Run pylint for code quality checks
-4. Run mypy for type checking
+3. Run mypy for type checking
 
 ## Installation Instructions
 When providing installation instructions to the user, always use:

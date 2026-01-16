@@ -34,6 +34,7 @@ def test_region_selection() -> None:
     frames = []
     for i in range(5):
         frame = capture.grab(region)
+        assert frame is not None
         frames.append(frame)
         print(f"Frame {i + 1}: {frame.shape} (expected: ({region['height']}, {region['width']}, 3))")
         time.sleep(0.5)
@@ -49,6 +50,7 @@ def test_region_selection() -> None:
 
     for i, frame in enumerate(frames):
         # Convert BGR to RGB for saving
+        assert frame is not None
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         pil_img = Image.fromarray(frame_rgb)
         filename = f"captured_frames/frame_{i + 1}.png"
