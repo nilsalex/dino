@@ -6,21 +6,23 @@ from pynput.keyboard import Controller, Key
 from stable_baselines3 import DQN
 import sys
 import os
-import subprocess
 from PIL import Image
-import io
+
 
 class ScreenCapture:
     """Cross-platform screen capture that works on X11, Wayland, Windows, and macOS."""
+
     def __init__(self):
         self.backend = self._detect_backend()
         print(f"Using screen capture backend: {self.backend}")
 
         if self.backend == "pipewire":
             from pipewire_capture import PipeWireCapture
+
             self.sct = PipeWireCapture()
         elif self.backend == "mss":
             from mss import mss
+
             self.sct = mss()
         elif self.backend == "wayland_fallback":
             print("\nERROR: Running on Wayland but PipeWire setup failed.")
@@ -28,7 +30,9 @@ class ScreenCapture:
             print("  1. PipeWire running")
             print("  2. xdg-desktop-portal installed")
             print("  3. Your compositor's portal backend installed")
-            print("\nAlternatively, run under XWayland: env -u WAYLAND_DISPLAY python main.py")
+            print(
+                "\nAlternatively, run under XWayland: env -u WAYLAND_DISPLAY python main.py"
+            )
             sys.exit(1)
 
     def _detect_backend(self):
@@ -41,8 +45,10 @@ class ScreenCapture:
             try:
                 # Check if required modules are available
                 import gi
-                gi.require_version('Gst', '1.0')
-                import dbus
+
+                gi.require_version("Gst", "1.0")
+                import dbus  # noqa: F401
+
                 return "pipewire"
             except (ImportError, ValueError) as e:
                 print(f"PipeWire backend not available: {e}")
@@ -69,11 +75,11 @@ class ScreenCapture:
             dict: Region with keys 'top', 'left', 'width', 'height', or None if cancelled
         """
         import tkinter as tk
-        from PIL import Image, ImageTk
+        from PIL import ImageTk
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("INTERACTIVE REGION SELECTION")
-        print("="*60)
+        print("=" * 60)
         print("Capturing screen...")
 
         # Get monitor info for positioning the overlay
@@ -87,13 +93,17 @@ class ScreenCapture:
 
             # Use monitor 1 (primary monitor) instead of 0 (all monitors combined)
             # Monitor 0 in mss is a virtual screen of all monitors combined
-            monitor = self.sct.monitors[1] if len(self.sct.monitors) > 1 else self.sct.monitors[0]
+            monitor = (
+                self.sct.monitors[1]
+                if len(self.sct.monitors) > 1
+                else self.sct.monitors[0]
+            )
             print(f"\nUsing monitor: {monitor}")
             full_screen = self.grab(monitor)
 
             # Store monitor offset for coordinate adjustment
-            monitor_left = monitor['left']
-            monitor_top = monitor['top']
+            monitor_left = monitor["left"]
+            monitor_top = monitor["top"]
             monitor_info = monitor
         elif self.backend == "pipewire":
             full_screen = self.sct.grab(None)
@@ -102,10 +112,12 @@ class ScreenCapture:
             monitor_info = self.sct.get_monitor_info()
             print(f"\nDebug: monitor_info = {monitor_info}")
             if monitor_info:
-                monitor_left = monitor_info['left']
-                monitor_top = monitor_info['top']
-                print(f"Using monitor at position ({monitor_left}, {monitor_top}), "
-                      f"size {monitor_info['width']}x{monitor_info['height']}")
+                monitor_left = monitor_info["left"]
+                monitor_top = monitor_info["top"]
+                print(
+                    f"Using monitor at position ({monitor_left}, {monitor_top}), "
+                    f"size {monitor_info['width']}x{monitor_info['height']}"
+                )
             else:
                 monitor_left = 0
                 monitor_top = 0
@@ -132,8 +144,8 @@ class ScreenCapture:
 
         if monitor_info and self.backend == "pipewire":
             # Use the monitor dimensions from portal metadata
-            display_width = monitor_info['width']
-            display_height = monitor_info['height']
+            display_width = monitor_info["width"]
+            display_height = monitor_info["height"]
             print(f"Using portal monitor dimensions: {display_width}x{display_height}")
         else:
             # Fall back to tkinter screen dimensions (multi-monitor setup will use total size)
@@ -142,7 +154,9 @@ class ScreenCapture:
             print(f"Using tkinter screen dimensions: {display_width}x{display_height}")
 
         # Scale image to display dimensions
-        display_image = pil_image.resize((display_width, display_height), Image.Resampling.LANCZOS)
+        display_image = pil_image.resize(
+            (display_width, display_height), Image.Resampling.LANCZOS
+        )
 
         # State for drag-to-draw rectangle selection
         start_pos = None  # Starting position in display coordinates
@@ -172,10 +186,7 @@ class ScreenCapture:
             x2, y2 = event.x, event.y
 
             current_rect = canvas.create_rectangle(
-                x1, y1, x2, y2,
-                outline='yellow',
-                width=4,
-                tags='selection'
+                x1, y1, x2, y2, outline="yellow", width=4, tags="selection"
             )
 
             # Calculate and display dimensions in actual capture coordinates
@@ -194,11 +205,12 @@ class ScreenCapture:
             mid_y = (y1 + y2) // 2
 
             current_text = canvas.create_text(
-                mid_x, mid_y,
+                mid_x,
+                mid_y,
                 text=f"{w}x{h}",
-                fill='yellow',
-                font=('Arial', 18, 'bold'),
-                tags='selection'
+                fill="yellow",
+                font=("Arial", 18, "bold"),
+                tags="selection",
             )
 
         def on_button_release(event):
@@ -231,7 +243,7 @@ class ScreenCapture:
                     "left": left,
                     "top": top,
                     "width": width,
-                    "height": height
+                    "height": height,
                 }
                 print(f"\nRegion selected: {width}x{height} at ({left}, {top})")
                 root.after(500, root.quit)
@@ -251,41 +263,47 @@ class ScreenCapture:
 
         # Remove window decorations for a clean fullscreen-like experience
         root.overrideredirect(True)
-        root.attributes('-topmost', True)
+        root.attributes("-topmost", True)
 
         # Force window manager to process the geometry
         root.update_idletasks()
 
-        canvas = tk.Canvas(root, width=display_width, height=display_height, highlightthickness=0)
+        canvas = tk.Canvas(
+            root, width=display_width, height=display_height, highlightthickness=0
+        )
         canvas.pack()
 
         # Display the scaled image
         photo = ImageTk.PhotoImage(display_image)
-        canvas.create_image(0, 0, image=photo, anchor='nw')
+        canvas.create_image(0, 0, image=photo, anchor="nw")
 
         # Keep reference to prevent garbage collection
         root.photo = photo
 
         # Draw instructions overlay at top
-        canvas.create_rectangle(0, 0, display_width, 120, fill='black', stipple='gray50')
-        canvas.create_text(
-            display_width // 2, 40,
-            text="Click and drag to select region",
-            fill='yellow',
-            font=('Arial', 24, 'bold')
+        canvas.create_rectangle(
+            0, 0, display_width, 120, fill="black", stipple="gray50"
         )
         canvas.create_text(
-            display_width // 2, 80,
+            display_width // 2,
+            40,
+            text="Click and drag to select region",
+            fill="yellow",
+            font=("Arial", 24, "bold"),
+        )
+        canvas.create_text(
+            display_width // 2,
+            80,
             text="Press ESC to cancel",
-            fill='yellow',
-            font=('Arial', 16)
+            fill="yellow",
+            font=("Arial", 16),
         )
 
         # Bind mouse events for drag-to-draw interaction
-        canvas.bind('<ButtonPress-1>', on_button_press)
-        canvas.bind('<B1-Motion>', on_mouse_drag)
-        canvas.bind('<ButtonRelease-1>', on_button_release)
-        root.bind('<Escape>', on_escape)
+        canvas.bind("<ButtonPress-1>", on_button_press)
+        canvas.bind("<B1-Motion>", on_mouse_drag)
+        canvas.bind("<ButtonRelease-1>", on_button_release)
+        root.bind("<Escape>", on_escape)
 
         print("\nWaiting for selection...")
         root.mainloop()
@@ -296,8 +314,11 @@ class ScreenCapture:
             return None
 
         region = final_region[0]
-        print(f"\n✓ Region selected: {region['width']}x{region['height']} at ({region['left']}, {region['top']})")
+        print(
+            f"\n✓ Region selected: {region['width']}x{region['height']} at ({region['left']}, {region['top']})"
+        )
         return region
+
 
 class DinoEnv(gym.Env):
     def __init__(self, select_region=False, game_over_threshold=0.99):
@@ -316,7 +337,12 @@ class DinoEnv(gym.Env):
                 self.game_region = region
             else:
                 print("Selection cancelled, using default region")
-                self.game_region = {"top": 150, "left": 100, "width": 600, "height": 150}
+                self.game_region = {
+                    "top": 150,
+                    "left": 100,
+                    "width": 600,
+                    "height": 150,
+                }
         else:
             self.game_region = {"top": 150, "left": 100, "width": 600, "height": 150}
 
@@ -326,21 +352,23 @@ class DinoEnv(gym.Env):
         self.game_over_threshold = game_over_threshold
         self.previous_frames = []  # Store last few frames for comparison
         self.num_frames_to_compare = 3  # Check if last 3 frames are identical
-        self.game_over_check_region = 0.6  # Use left 60% of frame to avoid reload button
+        self.game_over_check_region = (
+            0.6  # Use left 60% of frame to avoid reload button
+        )
 
     def _get_obs(self):
         img = self.sct.grab(self.game_region)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         resized = cv2.resize(gray, (84, 84))
-        
+
         self.frame_stack.append(resized)
         if len(self.frame_stack) > 4:
             self.frame_stack.pop(0)
         while len(self.frame_stack) < 4:
             self.frame_stack.append(resized)
-        
+
         return np.array(self.frame_stack)
-    
+
     def _is_game_over(self):
         """
         Detect game over by checking if the screen has stopped changing.
@@ -377,7 +405,7 @@ class DinoEnv(gym.Env):
         # Check if all recent frames are nearly identical
         # Compare each frame with the previous one
         for i in range(1, len(self.previous_frames)):
-            frame1 = self.previous_frames[i-1]
+            frame1 = self.previous_frames[i - 1]
             frame2 = self.previous_frames[i]
 
             # Calculate similarity (correlation coefficient)
@@ -390,7 +418,7 @@ class DinoEnv(gym.Env):
 
         # All consecutive frames are nearly identical -> game over
         return True
-    
+
     def step(self, action):
         if action == 1:
             self.keyboard.press(Key.space)
@@ -398,13 +426,13 @@ class DinoEnv(gym.Env):
         elif action == 2:
             self.keyboard.press(Key.down)
             self.keyboard.release(Key.down)
-        
+
         obs = self._get_obs()
         done = self._is_game_over()
         reward = 1.0 if not done else -100.0  # survival reward
-        
+
         return obs, reward, done, False, {}
-    
+
     def reset(self, seed=None):
         # Clear game over detection state
         self.previous_frames = []
@@ -415,18 +443,23 @@ class DinoEnv(gym.Env):
 
         # Wait a bit for game to restart
         import time
+
         time.sleep(0.5)
 
         self.frame_stack = []
         return self._get_obs(), {}
+
 
 def main():
     """Main training function."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Chrome Dino RL Agent")
-    parser.add_argument("--select-region", action="store_true",
-                       help="Interactively select the game region before training")
+    parser.add_argument(
+        "--select-region",
+        action="store_true",
+        help="Interactively select the game region before training",
+    )
     args = parser.parse_args()
 
     env = DinoEnv(select_region=args.select_region)
@@ -434,6 +467,7 @@ def main():
     print("\nStarting RL training...")
     model = DQN("CnnPolicy", env, verbose=1, buffer_size=50000)
     model.learn(total_timesteps=100000)
+
 
 if __name__ == "__main__":
     main()

@@ -3,9 +3,10 @@ PipeWire screen capture for Wayland using XDG Desktop Portal.
 
 Based on: https://github.com/columbarius/xdg-desktop-portal-testscripts
 """
-
+# ruff: noqa: E402
 import gi
-gi.require_version('Gst', '1.0')
+
+gi.require_version("Gst", "1.0")
 from gi.repository import GLib, Gst
 import threading
 import time
@@ -57,7 +58,9 @@ class PipeWireCapture:
         while self.latest_frame is None:
             time.sleep(0.1)
             if time.time() - start > timeout:
-                raise RuntimeError("Timeout waiting for first frame. Did you approve screen sharing?")
+                raise RuntimeError(
+                    "Timeout waiting for first frame. Did you approve screen sharing?"
+                )
 
         print(f"✓ PipeWire capture initialized! Frame shape: {self.latest_frame.shape}")
 
@@ -77,46 +80,44 @@ class PipeWireCapture:
         bus = dbus.SessionBus()
 
         # Generate unique session handle
-        sender_name = bus.get_unique_name()[1:].replace('.', '_')
-        token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-        session_handle = f"/org/freedesktop/portal/desktop/session/{sender_name}/{token}"
+        sender_name = bus.get_unique_name()[1:].replace(".", "_")
+        token = "".join(random.choices(string.ascii_letters + string.digits, k=10))
+        session_handle = (
+            f"/org/freedesktop/portal/desktop/session/{sender_name}/{token}"
+        )
 
         # Get portal interface
         portal = bus.get_object(
-            'org.freedesktop.portal.Desktop',
-            '/org/freedesktop/portal/desktop'
+            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"
         )
-        screencast = dbus.Interface(
-            portal,
-            'org.freedesktop.portal.ScreenCast'
-        )
+        screencast = dbus.Interface(portal, "org.freedesktop.portal.ScreenCast")
 
         # Create session
         session_response = {}
-        def session_response_handler(response, results):
-            session_response['handle'] = results.get('session_handle')
 
-        options = {
-            'session_handle_token': token,
-            'handle_token': token
-        }
+        def session_response_handler(response, results):
+            session_response["handle"] = results.get("session_handle")
+
+        options = {"session_handle_token": token, "handle_token": token}
         request = screencast.CreateSession(options)
         bus.add_signal_receiver(
             session_response_handler,
-            'Response',
-            'org.freedesktop.portal.Request',
-            path=request
+            "Response",
+            "org.freedesktop.portal.Request",
+            path=request,
         )
 
         # Wait for session creation using a mainloop
         temp_loop = GLib.MainLoop()
+
         def check_session():
-            if 'handle' in session_response:
+            if "handle" in session_response:
                 temp_loop.quit()
                 return False
             return True
+
         def session_timeout():
-            if 'handle' not in session_response:
+            if "handle" not in session_response:
                 temp_loop.quit()
             return False
 
@@ -124,45 +125,50 @@ class PipeWireCapture:
         GLib.timeout_add_seconds(5, session_timeout)
         temp_loop.run()
 
-        if 'handle' not in session_response:
+        if "handle" not in session_response:
             raise RuntimeError("Timeout creating screen share session")
 
-        session_handle = session_response['handle']
+        session_handle = session_response["handle"]
 
         # Select sources (1 = monitor, 2 = window)
         select_response = {}
+
         def select_response_handler(response, results):
             if response == 0:
-                select_response['ready'] = True
+                select_response["ready"] = True
             else:
-                select_response['error'] = 'User cancelled source selection'
+                select_response["error"] = "User cancelled source selection"
 
-        select_token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        select_token = "".join(
+            random.choices(string.ascii_letters + string.digits, k=10)
+        )
         select_request = screencast.SelectSources(
             session_handle,
             {
-                'types': dbus.UInt32(1),  # Monitor
-                'multiple': dbus.Boolean(False),
-                'handle_token': select_token
-            }
+                "types": dbus.UInt32(1),  # Monitor
+                "multiple": dbus.Boolean(False),
+                "handle_token": select_token,
+            },
         )
         bus.add_signal_receiver(
             select_response_handler,
-            'Response',
-            'org.freedesktop.portal.Request',
-            path=select_request
+            "Response",
+            "org.freedesktop.portal.Request",
+            path=select_request,
         )
 
         # Wait for source selection using a mainloop
         temp_loop = GLib.MainLoop()
+
         def check_select():
-            if 'ready' in select_response or 'error' in select_response:
+            if "ready" in select_response or "error" in select_response:
                 temp_loop.quit()
                 return False
             return True
+
         def select_timeout():
-            if 'ready' not in select_response:
-                select_response['error'] = 'Timeout'
+            if "ready" not in select_response:
+                select_response["error"] = "Timeout"
                 temp_loop.quit()
             return False
 
@@ -170,48 +176,49 @@ class PipeWireCapture:
         GLib.timeout_add_seconds(5, select_timeout)
         temp_loop.run()
 
-        if 'error' in select_response:
+        if "error" in select_response:
             raise RuntimeError(f"Source selection failed: {select_response['error']}")
 
         # Start screen sharing
         start_response = {}
+
         def start_response_handler(response, results):
             if response == 0:  # Success
-                streams = results.get('streams', [])
+                streams = results.get("streams", [])
                 if streams:
                     self.node_id = streams[0][0]  # PipeWire node ID
                     # Extract stream metadata (position, size, etc.)
                     # streams[0][1] is a dict with optional 'position' and 'size' keys
                     if len(streams[0]) > 1:
                         self.stream_metadata = dict(streams[0][1])
-                    start_response['ready'] = True
+                    start_response["ready"] = True
             else:
-                start_response['error'] = 'User cancelled or error occurred'
+                start_response["error"] = "User cancelled or error occurred"
 
-        start_token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-        request = screencast.Start(
-            session_handle,
-            '',
-            {'handle_token': start_token}
+        start_token = "".join(
+            random.choices(string.ascii_letters + string.digits, k=10)
         )
+        request = screencast.Start(session_handle, "", {"handle_token": start_token})
         bus.add_signal_receiver(
             start_response_handler,
-            'Response',
-            'org.freedesktop.portal.Request',
-            path=request
+            "Response",
+            "org.freedesktop.portal.Request",
+            path=request,
         )
 
         # Wait for user to approve using a mainloop
         print("Waiting for screen share approval...")
         temp_loop = GLib.MainLoop()
+
         def check_start():
-            if 'ready' in start_response or 'error' in start_response:
+            if "ready" in start_response or "error" in start_response:
                 temp_loop.quit()
                 return False
             return True
+
         def start_timeout():
-            if 'ready' not in start_response:
-                start_response['error'] = 'Timeout'
+            if "ready" not in start_response:
+                start_response["error"] = "Timeout"
                 temp_loop.quit()
             return False
 
@@ -219,26 +226,27 @@ class PipeWireCapture:
         GLib.timeout_add_seconds(30, start_timeout)
         temp_loop.run()
 
-        if 'error' in start_response:
+        if "error" in start_response:
             raise RuntimeError(f"Screen share failed: {start_response['error']}")
 
         # Open PipeWire remote
-        fd_obj = screencast.OpenPipeWireRemote(
-            session_handle,
-            {}
-        )
+        fd_obj = screencast.OpenPipeWireRemote(session_handle, {})
 
         # Extract integer FD from dbus.UnixFd object
         # The UnixFd object wraps the actual file descriptor
         self.fd = fd_obj.take()  # take() extracts the FD and transfers ownership
 
-        print(f"✓ Screen share approved! PipeWire node ID: {self.node_id}, FD: {self.fd}")
+        print(
+            f"✓ Screen share approved! PipeWire node ID: {self.node_id}, FD: {self.fd}"
+        )
 
         # Display monitor metadata if available
-        print(f"  Stream metadata keys: {list(self.stream_metadata.keys()) if self.stream_metadata else 'None'}")
+        print(
+            f"  Stream metadata keys: {list(self.stream_metadata.keys()) if self.stream_metadata else 'None'}"
+        )
         if self.stream_metadata:
-            position = self.stream_metadata.get('position')
-            size = self.stream_metadata.get('size')
+            position = self.stream_metadata.get("position")
+            size = self.stream_metadata.get("size")
             if position:
                 print(f"  Monitor position: {position} (type: {type(position)})")
             if size:
@@ -264,38 +272,36 @@ class PipeWireCapture:
         self.pipeline = Gst.parse_launch(pipeline_str)
 
         # Get appsink
-        self.appsink = self.pipeline.get_by_name('sink')
+        self.appsink = self.pipeline.get_by_name("sink")
         if not self.appsink:
             raise RuntimeError("Could not get appsink from pipeline")
 
         # Connect to new-sample signal
-        self.appsink.connect('new-sample', self._on_new_sample)
+        self.appsink.connect("new-sample", self._on_new_sample)
 
         # Setup bus messages
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
-        bus.connect('message', self._on_bus_message)
+        bus.connect("message", self._on_bus_message)
 
     def _on_new_sample(self, appsink):
         """Callback when new frame is available."""
-        sample = appsink.emit('pull-sample')
+        sample = appsink.emit("pull-sample")
         if sample:
             buffer = sample.get_buffer()
             caps = sample.get_caps()
 
             # Get frame dimensions
             structure = caps.get_structure(0)
-            width = structure.get_value('width')
-            height = structure.get_value('height')
+            width = structure.get_value("width")
+            height = structure.get_value("height")
 
             # Extract data
             success, map_info = buffer.map(Gst.MapFlags.READ)
             if success:
                 # Convert to numpy array (BGR format)
                 frame = np.ndarray(
-                    shape=(height, width, 3),
-                    dtype=np.uint8,
-                    buffer=map_info.data
+                    shape=(height, width, 3), dtype=np.uint8, buffer=map_info.data
                 )
 
                 # Store latest frame
@@ -353,8 +359,8 @@ class PipeWireCapture:
         if not self.stream_metadata:
             return None
 
-        position = self.stream_metadata.get('position')
-        size = self.stream_metadata.get('size')
+        position = self.stream_metadata.get("position")
+        size = self.stream_metadata.get("size")
 
         if position is None or size is None:
             return None
@@ -362,10 +368,12 @@ class PipeWireCapture:
         # Convert dbus types to Python ints
         # position is a tuple (x, y), size is a tuple (width, height)
         return {
-            'left': int(position[0]) if isinstance(position, (tuple, list)) else int(position),
-            'top': int(position[1]) if isinstance(position, (tuple, list)) else 0,
-            'width': int(size[0]) if isinstance(size, (tuple, list)) else int(size),
-            'height': int(size[1]) if isinstance(size, (tuple, list)) else 0,
+            "left": int(position[0])
+            if isinstance(position, (tuple, list))
+            else int(position),
+            "top": int(position[1]) if isinstance(position, (tuple, list)) else 0,
+            "width": int(size[0]) if isinstance(size, (tuple, list)) else int(size),
+            "height": int(size[1]) if isinstance(size, (tuple, list)) else 0,
         }
 
     def grab(self, region: Optional[Dict] = None) -> Optional[np.ndarray]:
@@ -387,10 +395,10 @@ class PipeWireCapture:
 
         # Crop to region if specified
         if region:
-            x = region.get('left', 0)
-            y = region.get('top', 0)
-            w = region.get('width', frame.shape[1])
-            h = region.get('height', frame.shape[0])
+            x = region.get("left", 0)
+            y = region.get("top", 0)
+            w = region.get("width", frame.shape[1])
+            h = region.get("height", frame.shape[0])
 
             # Ensure bounds are valid
             x = max(0, min(x, frame.shape[1] - 1))
@@ -398,7 +406,7 @@ class PipeWireCapture:
             w = min(w, frame.shape[1] - x)
             h = min(h, frame.shape[0] - y)
 
-            frame = frame[y:y+h, x:x+w]
+            frame = frame[y : y + h, x : x + w]
 
         return frame
 

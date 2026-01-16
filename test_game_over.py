@@ -8,19 +8,20 @@ Instructions:
 3. The script will take random actions and monitor for game over
 4. When dino crashes, it should detect game over and restart
 """
+
 from main import DinoEnv
 import time
-import numpy as np
+
 
 def test_game_over_detection():
-    print("="*60)
+    print("=" * 60)
     print("GAME OVER DETECTION TEST")
-    print("="*60)
+    print("=" * 60)
     print("\nInstructions:")
     print("1. Make sure Chrome Dino game is visible and ready")
     print("2. The test will take random actions until game over")
     print("3. It will detect game over and attempt to restart")
-    print("="*60)
+    print("=" * 60)
 
     # Create environment with region selection
     print("\nInitializing environment...")
@@ -29,9 +30,9 @@ def test_game_over_detection():
     # Run test episodes
     num_episodes = 3
     for episode in range(num_episodes):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"EPISODE {episode + 1}/{num_episodes}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         obs, info = env.reset()
         print("Game started/restarted. Taking random actions...")
@@ -64,21 +65,22 @@ def test_game_over_detection():
             print(f"\n! Reached max steps ({max_steps_per_episode}) without game over")
             print("  Either you're very lucky or threshold needs adjustment!")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("TEST COMPLETE")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("\nResults:")
     print(f"  Episodes completed: {num_episodes}")
     print("\nIf game over was detected each time, the implementation works!")
 
+
 def test_no_false_positives():
     """Test that game over is not detected during normal gameplay."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("FALSE POSITIVE TEST")
-    print("="*60)
+    print("=" * 60)
     print("\nThis test checks that game over is NOT detected during normal play.")
     print("Make sure the game is running and the dino is NOT crashing!")
-    print("="*60)
+    print("=" * 60)
 
     env = DinoEnv(select_region=True, game_over_threshold=0.99)
 
@@ -99,26 +101,29 @@ def test_no_false_positives():
         if step % 20 == 0:
             print(f"  Step {step}/100...")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("FALSE POSITIVE TEST COMPLETE")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"False positives detected: {false_positives}")
 
     if false_positives == 0:
         print("✓ No false positives! Game over detection is working correctly.")
     else:
-        print("✗ False positives detected. Consider lowering threshold or increasing num_frames_to_compare.")
+        print(
+            "✗ False positives detected. Consider lowering threshold or increasing num_frames_to_compare."
+        )
+
 
 def manual_test():
     """Interactive test where you can manually verify game over detection."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("MANUAL GAME OVER TEST")
-    print("="*60)
+    print("=" * 60)
     print("\nInstructions:")
     print("1. Start the game and let it run")
     print("2. When you're ready, let the dino crash")
     print("3. Watch the console to see when game over is detected")
-    print("="*60)
+    print("=" * 60)
 
     env = DinoEnv(select_region=True, game_over_threshold=0.99)
 
@@ -134,9 +139,9 @@ def manual_test():
             step += 1
 
             if done:
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print(f"✓ GAME OVER DETECTED at step {step}!")
-                print(f"{'='*60}")
+                print(f"{'=' * 60}")
                 print("Restarting in 2 seconds...")
                 time.sleep(2)
                 obs, info = env.reset()
@@ -150,13 +155,17 @@ def manual_test():
     except KeyboardInterrupt:
         print("\n\nTest stopped by user.")
 
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Test game over detection")
-    parser.add_argument("--test", choices=["all", "detection", "false-positive", "manual"],
-                       default="all",
-                       help="Which test to run")
+    parser.add_argument(
+        "--test",
+        choices=["all", "detection", "false-positive", "manual"],
+        default="all",
+        help="Which test to run",
+    )
     args = parser.parse_args()
 
     if args.test == "all":

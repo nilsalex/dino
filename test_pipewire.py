@@ -2,7 +2,9 @@
 """
 Test PipeWire screen capture initialization.
 """
+
 import sys
+
 
 def test_pipewire():
     print("=" * 60)
@@ -14,6 +16,7 @@ def test_pipewire():
     try:
         import dbus
         from dbus.mainloop.glib import DBusGMainLoop
+
         DBusGMainLoop(set_as_default=True)
         print("   ✓ D-Bus mainloop configured")
     except Exception as e:
@@ -33,8 +36,10 @@ def test_pipewire():
     print("3. Testing GStreamer imports...")
     try:
         import gi
-        gi.require_version('Gst', '1.0')
+
+        gi.require_version("Gst", "1.0")
         from gi.repository import Gst
+
         Gst.init(None)
         print(f"   ✓ GStreamer version: {Gst.version_string()}")
     except Exception as e:
@@ -45,13 +50,9 @@ def test_pipewire():
     print("4. Checking XDG Desktop Portal...")
     try:
         portal = bus.get_object(
-            'org.freedesktop.portal.Desktop',
-            '/org/freedesktop/portal/desktop'
+            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"
         )
-        screencast = dbus.Interface(
-            portal,
-            'org.freedesktop.portal.ScreenCast'
-        )
+        screencast = dbus.Interface(portal, "org.freedesktop.portal.ScreenCast")  # noqa: F841
         print("   ✓ XDG Desktop Portal accessible")
     except Exception as e:
         print(f"   ✗ Portal error: {e}")
@@ -66,8 +67,9 @@ def test_pipewire():
 
     try:
         from pipewire_capture import PipeWireCapture
+
         capture = PipeWireCapture()
-        print(f"   ✓ PipeWire capture initialized!")
+        print("   ✓ PipeWire capture initialized!")
 
         print()
         print("6. Testing frame capture...")
@@ -88,8 +90,10 @@ def test_pipewire():
     except Exception as e:
         print(f"   ✗ PipeWire error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     success = test_pipewire()
