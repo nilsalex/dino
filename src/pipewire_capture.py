@@ -373,7 +373,8 @@ class PipeWireCapture:
 
         Args:
             region: Optional dict with keys 'left', 'top', 'width', 'height'.
-                   If provided, crops the frame to this region.
+                   Coordinates should be in absolute screen coordinates.
+                   They will be converted to monitor-relative coordinates.
 
         Returns:
             numpy array in BGR format, or None if no frame available yet
@@ -390,6 +391,13 @@ class PipeWireCapture:
             y = region.get("top", 0)
             w = region.get("width", frame.shape[1])
             h = region.get("height", frame.shape[0])
+
+            # Convert from absolute screen coordinates to monitor-relative coordinates
+            # The captured frame starts at (0,0) but represents the monitor at (monitor_left, monitor_top)
+            monitor_info = self.get_monitor_info()
+            if monitor_info:
+                x -= monitor_info["left"]
+                y -= monitor_info["top"]
 
             # Ensure bounds are valid
             x = max(0, min(x, frame.shape[1] - 1))

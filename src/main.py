@@ -98,10 +98,10 @@ class ScreenCapture:
             for i, mon in enumerate(self.sct.monitors):
                 print(f"  Monitor {i}: {mon}")
 
-            # Use monitor 1 (primary monitor) instead of 0 (all monitors combined)
-            # Monitor 0 in mss is a virtual screen of all monitors combined
-            monitor = self.sct.monitors[1] if len(self.sct.monitors) > 1 else self.sct.monitors[0]
-            print(f"\nUsing monitor: {monitor}")
+            # Use monitor 0 which is the virtual screen of all monitors combined
+            # This allows region selection on any monitor in a multi-monitor setup
+            monitor = self.sct.monitors[0]
+            print(f"\nUsing virtual screen (all monitors): {monitor}")
             full_screen = self.grab(monitor)
 
             # Store monitor offset for coordinate adjustment
