@@ -36,3 +36,10 @@ target-version = "py38"
 
 [tool.setuptools]
 py-modules = ["main", "pipewire_capture"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "pylint>=3.2.7",
+    "ruff>=0.14.11",
+]
