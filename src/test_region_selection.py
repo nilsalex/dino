@@ -3,13 +3,16 @@
 Test the interactive region selection feature.
 """
 
-from main import ScreenCapture
 import time
+
 import cv2
 from PIL import Image
 
+from main import ScreenCapture
 
-def test_region_selection():
+
+def test_region_selection() -> None:
+    """Test interactive region selection and frame capture."""
     print("Testing interactive region selection...")
 
     capture = ScreenCapture()

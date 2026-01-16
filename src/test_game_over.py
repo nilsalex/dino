@@ -9,11 +9,13 @@ Instructions:
 4. When dino crashes, it should detect game over and restart
 """
 
-from main import DinoEnv
 import time
 
+from main import DinoEnv
 
-def test_game_over_detection():
+
+def test_game_over_detection() -> None:
+    """Test the game over detection mechanism."""
     print("=" * 60)
     print("GAME OVER DETECTION TEST")
     print("=" * 60)
@@ -34,7 +36,7 @@ def test_game_over_detection():
         print(f"EPISODE {episode + 1}/{num_episodes}")
         print(f"{'=' * 60}")
 
-        obs, info = env.reset()
+        _obs, _info = env.reset()
         print("Game started/restarted. Taking random actions...")
 
         step_count = 0
@@ -45,7 +47,7 @@ def test_game_over_detection():
             action = env.action_space.sample()
 
             # Execute action
-            obs, reward, done, truncated, info = env.step(action)
+            obs, reward, done, _truncated, info = env.step(action)
 
             step_count += 1
 
@@ -73,7 +75,7 @@ def test_game_over_detection():
     print("\nIf game over was detected each time, the implementation works!")
 
 
-def test_no_false_positives():
+def test_no_false_positives() -> None:
     """Test that game over is not detected during normal gameplay."""
     print("\n" + "=" * 60)
     print("FALSE POSITIVE TEST")
@@ -84,13 +86,13 @@ def test_no_false_positives():
 
     env = DinoEnv(select_region=True, game_over_threshold=0.99)
 
-    obs, info = env.reset()
+    _obs, _info = env.reset()
     print("\nTaking 100 steps with no action (just monitoring)...")
 
     false_positives = 0
     for step in range(100):
         # Take no action (action=0)
-        obs, reward, done, truncated, info = env.step(0)
+        obs, _reward, done, _truncated, info = env.step(0)
 
         if done:
             false_positives += 1
@@ -112,7 +114,7 @@ def test_no_false_positives():
         print("✗ False positives detected. Consider lowering threshold or increasing num_frames_to_compare.")
 
 
-def manual_test():
+def manual_test() -> None:
     """Interactive test where you can manually verify game over detection."""
     print("\n" + "=" * 60)
     print("MANUAL GAME OVER TEST")
@@ -125,14 +127,14 @@ def manual_test():
 
     env = DinoEnv(select_region=True, game_over_threshold=0.99)
 
-    obs, info = env.reset()
+    _obs, _info = env.reset()
     print("\nMonitoring for game over... (Press Ctrl+C to stop)")
 
     try:
         step = 0
         while True:
             # Take no action, just monitor
-            obs, reward, done, truncated, info = env.step(0)
+            obs, _reward, done, _truncated, info = env.step(0)
 
             step += 1
 

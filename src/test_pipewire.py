@@ -6,7 +6,8 @@ Test PipeWire screen capture initialization.
 import sys
 
 
-def test_pipewire():
+def test_pipewire() -> bool:
+    """Test PipeWire dependencies and screen capture initialization."""
     print("=" * 60)
     print("PipeWire Screen Capture Test")
     print("=" * 60)
@@ -50,7 +51,7 @@ def test_pipewire():
     print("4. Checking XDG Desktop Portal...")
     try:
         portal = bus.get_object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
-        screencast = dbus.Interface(portal, "org.freedesktop.portal.ScreenCast")  # noqa: F841
+        _screencast = dbus.Interface(portal, "org.freedesktop.portal.ScreenCast")
         print("   ✓ XDG Desktop Portal accessible")
     except Exception as e:
         print(f"   ✗ Portal error: {e}")
@@ -94,5 +95,5 @@ def test_pipewire():
 
 
 if __name__ == "__main__":
-    success = test_pipewire()
-    sys.exit(0 if success else 1)
+    test_passed = test_pipewire()
+    sys.exit(0 if test_passed else 1)

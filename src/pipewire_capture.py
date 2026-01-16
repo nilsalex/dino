@@ -4,17 +4,22 @@ PipeWire screen capture for Wayland using XDG Desktop Portal.
 Based on: https://github.com/columbarius/xdg-desktop-portal-testscripts
 """
 
+# pylint: disable=wrong-import-position,wrong-import-order
+# gi.require_version must be called before importing from gi.repository
 # ruff: noqa: E402
+
 import gi
 
 gi.require_version("Gst", "1.0")
-from gi.repository import GLib, Gst
-import threading
-import time
-import numpy as np
-from typing import Optional, Dict
+
 import random
 import string
+import threading
+import time
+from typing import Dict, Optional
+
+import numpy as np
+from gi.repository import GLib, Gst
 
 # Initialize GStreamer
 Gst.init(None)
@@ -28,17 +33,17 @@ class PipeWireCapture:
     subprocess overhead.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize PipeWire capture. User permission will be requested."""
-        self.pipeline = None
-        self.appsink = None
-        self.latest_frame = None
-        self.frame_lock = threading.Lock()
-        self.mainloop = None
-        self.mainloop_thread = None
-        self.node_id = None
-        self.fd = None
-        self.stream_metadata = {}  # Store monitor position, size, etc.
+        self.pipeline: Optional[Gst.Pipeline] = None
+        self.appsink: Optional[Gst.Element] = None
+        self.latest_frame: Optional[np.ndarray] = None
+        self.frame_lock: threading.Lock = threading.Lock()
+        self.mainloop: Optional[GLib.MainLoop] = None
+        self.mainloop_thread: Optional[threading.Thread] = None
+        self.node_id: Optional[int] = None
+        self.fd: Optional[int] = None
+        self.stream_metadata: Dict[str, any] = {}  # Store monitor position, size, etc.
 
         print("Initializing PipeWire screen capture...")
         print("NOTE: You will need to approve screen sharing in the system dialog.")
@@ -63,13 +68,15 @@ class PipeWireCapture:
 
         print(f"✓ PipeWire capture initialized! Frame shape: {self.latest_frame.shape}")
 
-    def _request_screen_share(self):
+    def _request_screen_share(self) -> None:
         """Request screen sharing session via XDG Desktop Portal."""
         try:
             import dbus
             from dbus.mainloop.glib import DBusGMainLoop
-        except ImportError:
-            raise ImportError("dbus-python is required for PipeWire capture. Install with: pip install dbus-python")
+        except ImportError as exc:
+            raise ImportError(
+                "dbus-python is required for PipeWire capture. Install with: pip install dbus-python"
+            ) from exc
 
         # Setup D-Bus
         DBusGMainLoop(set_as_default=True)
@@ -87,7 +94,7 @@ class PipeWireCapture:
         # Create session
         session_response = {}
 
-        def session_response_handler(response, results):
+        def session_response_handler(_response, results):
             session_response["handle"] = results.get("session_handle")
 
         options = {"session_handle_token": token, "handle_token": token}
@@ -125,7 +132,7 @@ class PipeWireCapture:
         # Select sources (1 = monitor, 2 = window)
         select_response = {}
 
-        def select_response_handler(response, results):
+        def select_response_handler(response, _results):
             if response == 0:
                 select_response["ready"] = True
             else:
@@ -241,7 +248,7 @@ class PipeWireCapture:
         else:
             print("  Note: Monitor position metadata not available from portal")
 
-    def _create_pipeline(self):
+    def _create_pipeline(self) -> None:
         """Create GStreamer pipeline: pipewiresrc -> videoconvert -> appsink."""
         if self.node_id is None or self.fd is None:
             raise RuntimeError("Must request screen share before creating pipeline")
@@ -269,7 +276,7 @@ class PipeWireCapture:
         bus.add_signal_watch()
         bus.connect("message", self._on_bus_message)
 
-    def _on_new_sample(self, appsink):
+    def _on_new_sample(self, appsink: Gst.Element) -> Gst.FlowReturn:
         """Callback when new frame is available."""
         sample = appsink.emit("pull-sample")
         if sample:
@@ -295,7 +302,7 @@ class PipeWireCapture:
 
         return Gst.FlowReturn.OK
 
-    def _on_bus_message(self, bus, message):
+    def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message) -> bool:
         """Handle GStreamer bus messages."""
         t = message.type
         if t == Gst.MessageType.ERROR:
@@ -313,7 +320,7 @@ class PipeWireCapture:
 
         return True
 
-    def _start_capture(self):
+    def _start_capture(self) -> None:
         """Start the GStreamer pipeline in a background thread."""
         # Set pipeline to playing
         ret = self.pipeline.set_state(Gst.State.PLAYING)
@@ -391,7 +398,7 @@ class PipeWireCapture:
 
         return frame
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop capture and cleanup resources."""
         if self.pipeline:
             self.pipeline.set_state(Gst.State.NULL)
@@ -401,6 +408,6 @@ class PipeWireCapture:
             self.mainloop_thread.join(timeout=2.0)
         print("✓ PipeWire capture stopped")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on deletion."""
         self.stop()

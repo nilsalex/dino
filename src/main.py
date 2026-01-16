@@ -2,11 +2,13 @@
 
 import os
 import sys
+from typing import Any, Dict, Optional, Tuple
 
 import cv2
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from numpy.typing import NDArray
 from PIL import Image
 from pynput.keyboard import Controller, Key
 from stable_baselines3 import DQN
@@ -15,8 +17,8 @@ from stable_baselines3 import DQN
 class ScreenCapture:
     """Cross-platform screen capture that works on X11, Wayland, Windows, and macOS."""
 
-    def __init__(self):
-        self.backend = self._detect_backend()
+    def __init__(self) -> None:
+        self.backend: str = self._detect_backend()
         print(f"Using screen capture backend: {self.backend}")
 
         if self.backend == "pipewire":
@@ -36,10 +38,10 @@ class ScreenCapture:
             print("\nAlternatively, run under XWayland: env -u WAYLAND_DISPLAY python main.py")
             sys.exit(1)
 
-    def _detect_backend(self):
+    def _detect_backend(self) -> str:
         """Detect the best screen capture backend for the current environment."""
-        session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
-        wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
+        session_type: str = os.environ.get("XDG_SESSION_TYPE", "").lower()
+        wayland_display: str = os.environ.get("WAYLAND_DISPLAY", "")
 
         if session_type == "wayland" or wayland_display:
             # On Wayland, try PipeWire (best performance)
@@ -57,17 +59,18 @@ class ScreenCapture:
         # Use mss for X11, Windows, macOS
         return "mss"
 
-    def grab(self, region):
+    def grab(self, region: Dict[str, int]) -> Optional[NDArray[np.uint8]]:
         """Capture a screen region. Returns a numpy array in BGR format."""
         if self.backend == "pipewire":
             # PipeWireCapture.grab returns BGR numpy array
             return self.sct.grab(region)
-        elif self.backend == "mss":
+        if self.backend == "mss":
             img = self.sct.grab(region)
             # mss returns BGRA, convert to BGR
             return np.array(img)[:, :, :3]
+        return None
 
-    def select_region_interactive(self):
+    def select_region_interactive(self) -> Optional[Dict[str, int]]:
         """
         Let user select a screen region by clicking two points on the screen.
 
@@ -243,7 +246,7 @@ class ScreenCapture:
                 print("\nInvalid selection (too small)")
                 start_pos = None
 
-        def on_escape(event):
+        def on_escape(_event):
             cancelled[0] = True
             root.quit()
 
@@ -306,19 +309,21 @@ class ScreenCapture:
         return region
 
 
-class DinoEnv(gym.Env):
-    def __init__(self, select_region=False, game_over_threshold=0.99):
+class DinoEnv(gym.Env):  # type: ignore[misc]
+    """Chrome Dino Gymnasium environment."""
+
+    def __init__(self, select_region: bool = False, game_over_threshold: float = 0.99) -> None:
         super().__init__()
         self.action_space = spaces.Discrete(3)  # nothing, jump, duck
         self.observation_space = spaces.Box(low=0, high=255, shape=(4, 84, 84), dtype=np.uint8)
-        self.sct = ScreenCapture()
-        self.keyboard = Controller()
+        self.sct: ScreenCapture = ScreenCapture()
+        self.keyboard: Controller = Controller()
 
         # Select or use default game region
         if select_region:
             region = self.sct.select_region_interactive()
             if region:
-                self.game_region = region
+                self.game_region: Dict[str, int] = region
             else:
                 print("Selection cancelled, using default region")
                 self.game_region = {
@@ -330,18 +335,18 @@ class DinoEnv(gym.Env):
         else:
             self.game_region = {"top": 150, "left": 100, "width": 600, "height": 150}
 
-        self.frame_stack = []
+        self.frame_stack: list[NDArray[np.uint8]] = []
 
         # Game over detection
-        self.game_over_threshold = game_over_threshold
-        self.previous_frames = []  # Store last few frames for comparison
-        self.num_frames_to_compare = 3  # Check if last 3 frames are identical
-        self.game_over_check_region = 0.6  # Use left 60% of frame to avoid reload button
+        self.game_over_threshold: float = game_over_threshold
+        self.previous_frames: list[NDArray[np.uint8]] = []  # Store last few frames for comparison
+        self.num_frames_to_compare: int = 3  # Check if last 3 frames are identical
+        self.game_over_check_region: float = 0.6  # Use left 60% of frame to avoid reload button
 
-    def _get_obs(self):
+    def _get_obs(self) -> NDArray[np.uint8]:
         img = self.sct.grab(self.game_region)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        resized = cv2.resize(gray, (84, 84))
+        gray: NDArray[np.uint8] = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        resized: NDArray[np.uint8] = cv2.resize(gray, (84, 84))
 
         self.frame_stack.append(resized)
         if len(self.frame_stack) > 4:
@@ -351,7 +356,7 @@ class DinoEnv(gym.Env):
 
         return np.array(self.frame_stack)
 
-    def _is_game_over(self):
+    def _is_game_over(self) -> bool:
         """
         Detect game over by checking if the screen has stopped changing.
 
@@ -401,7 +406,7 @@ class DinoEnv(gym.Env):
         # All consecutive frames are nearly identical -> game over
         return True
 
-    def step(self, action):
+    def step(self, action: int) -> Tuple[NDArray[np.uint8], float, bool, bool, Dict[str, Any]]:
         if action == 1:
             self.keyboard.press(Key.space)
             self.keyboard.release(Key.space)
@@ -415,7 +420,9 @@ class DinoEnv(gym.Env):
 
         return obs, reward, done, False, {}
 
-    def reset(self, seed=None):
+    def reset(
+        self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
+    ) -> Tuple[NDArray[np.uint8], Dict[str, Any]]:
         # Clear game over detection state
         self.previous_frames = []
 
@@ -432,7 +439,7 @@ class DinoEnv(gym.Env):
         return self._get_obs(), {}
 
 
-def main():
+def main() -> None:
     """Main training function."""
     import argparse
 
