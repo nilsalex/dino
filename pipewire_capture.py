@@ -36,6 +36,7 @@ class PipeWireCapture:
         self.mainloop_thread = None
         self.node_id = None
         self.fd = None
+        self.stream_metadata = {}  # Store monitor position, size, etc.
 
         print("Initializing PipeWire screen capture...")
         print("NOTE: You will need to approve screen sharing in the system dialog.")
@@ -179,6 +180,10 @@ class PipeWireCapture:
                 streams = results.get('streams', [])
                 if streams:
                     self.node_id = streams[0][0]  # PipeWire node ID
+                    # Extract stream metadata (position, size, etc.)
+                    # streams[0][1] is a dict with optional 'position' and 'size' keys
+                    if len(streams[0]) > 1:
+                        self.stream_metadata = dict(streams[0][1])
                     start_response['ready'] = True
             else:
                 start_response['error'] = 'User cancelled or error occurred'
@@ -228,6 +233,20 @@ class PipeWireCapture:
         self.fd = fd_obj.take()  # take() extracts the FD and transfers ownership
 
         print(f"✓ Screen share approved! PipeWire node ID: {self.node_id}, FD: {self.fd}")
+
+        # Display monitor metadata if available
+        print(f"  Stream metadata keys: {list(self.stream_metadata.keys()) if self.stream_metadata else 'None'}")
+        if self.stream_metadata:
+            position = self.stream_metadata.get('position')
+            size = self.stream_metadata.get('size')
+            if position:
+                print(f"  Monitor position: {position} (type: {type(position)})")
+            if size:
+                print(f"  Monitor size: {size} (type: {type(size)})")
+            if not position or not size:
+                print("  Note: Portal provided metadata but missing position or size")
+        else:
+            print("  Note: Monitor position metadata not available from portal")
 
     def _create_pipeline(self):
         """Create GStreamer pipeline: pipewiresrc -> videoconvert -> appsink."""
@@ -322,6 +341,32 @@ class PipeWireCapture:
         self.mainloop_thread.start()
 
         print("✓ Capture pipeline started")
+
+    def get_monitor_info(self) -> Optional[Dict]:
+        """
+        Get information about the captured monitor.
+
+        Returns:
+            Dict with 'position' (x, y) and 'size' (width, height) if available,
+            or None if metadata is not provided by the portal.
+        """
+        if not self.stream_metadata:
+            return None
+
+        position = self.stream_metadata.get('position')
+        size = self.stream_metadata.get('size')
+
+        if position is None or size is None:
+            return None
+
+        # Convert dbus types to Python ints
+        # position is a tuple (x, y), size is a tuple (width, height)
+        return {
+            'left': int(position[0]) if isinstance(position, (tuple, list)) else int(position),
+            'top': int(position[1]) if isinstance(position, (tuple, list)) else 0,
+            'width': int(size[0]) if isinstance(size, (tuple, list)) else int(size),
+            'height': int(size[1]) if isinstance(size, (tuple, list)) else 0,
+        }
 
     def grab(self, region: Optional[Dict] = None) -> Optional[np.ndarray]:
         """

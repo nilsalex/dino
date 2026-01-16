@@ -75,6 +75,10 @@ class ScreenCapture:
         print("INTERACTIVE REGION SELECTION")
         print("="*60)
         print("Capturing screen...")
+
+        # Get monitor info for positioning the overlay
+        monitor_info = None
+
         if self.backend == "mss":
             # Show available monitors
             print("\nAvailable monitors:")
@@ -90,10 +94,23 @@ class ScreenCapture:
             # Store monitor offset for coordinate adjustment
             monitor_left = monitor['left']
             monitor_top = monitor['top']
+            monitor_info = monitor
         elif self.backend == "pipewire":
             full_screen = self.sct.grab(None)
-            monitor_left = 0
-            monitor_top = 0
+
+            # Try to get monitor position from portal metadata
+            monitor_info = self.sct.get_monitor_info()
+            print(f"\nDebug: monitor_info = {monitor_info}")
+            if monitor_info:
+                monitor_left = monitor_info['left']
+                monitor_top = monitor_info['top']
+                print(f"Using monitor at position ({monitor_left}, {monitor_top}), "
+                      f"size {monitor_info['width']}x{monitor_info['height']}")
+            else:
+                monitor_left = 0
+                monitor_top = 0
+                print("Monitor position unknown (portal didn't provide metadata)")
+                print("Overlay will appear on default monitor")
 
         if full_screen is None:
             raise RuntimeError("Failed to capture screen")
@@ -107,14 +124,25 @@ class ScreenCapture:
         # Convert to PIL Image
         pil_image = Image.fromarray(screen_rgb)
 
-        # Get tkinter screen dimensions (may be scaled due to HiDPI)
+        # Determine display dimensions
+        # For PipeWire with monitor metadata, use the reported monitor size
+        # For mss or PipeWire without metadata, use tkinter's screen dimensions
         root = tk.Tk()
         root.update_idletasks()
-        tk_screen_width = root.winfo_screenwidth()
-        tk_screen_height = root.winfo_screenheight()
 
-        # Scale image down to tkinter's logical pixel dimensions
-        display_image = pil_image.resize((tk_screen_width, tk_screen_height), Image.Resampling.LANCZOS)
+        if monitor_info and self.backend == "pipewire":
+            # Use the monitor dimensions from portal metadata
+            display_width = monitor_info['width']
+            display_height = monitor_info['height']
+            print(f"Using portal monitor dimensions: {display_width}x{display_height}")
+        else:
+            # Fall back to tkinter screen dimensions (multi-monitor setup will use total size)
+            display_width = root.winfo_screenwidth()
+            display_height = root.winfo_screenheight()
+            print(f"Using tkinter screen dimensions: {display_width}x{display_height}")
+
+        # Scale image to display dimensions
+        display_image = pil_image.resize((display_width, display_height), Image.Resampling.LANCZOS)
 
         clicks = []
         display_clicks = []  # Store display coordinates for drawing
@@ -127,8 +155,8 @@ class ScreenCapture:
 
                 # Map widget coordinates (in display image space) to original capture space
                 # using ratio/percentage mapping
-                scale_x = capture_width / tk_screen_width
-                scale_y = capture_height / tk_screen_height
+                scale_x = capture_width / display_width
+                scale_y = capture_height / display_height
 
                 original_x = int(widget_x * scale_x) + monitor_left
                 original_y = int(widget_y * scale_y) + monitor_top
@@ -171,11 +199,20 @@ class ScreenCapture:
             cancelled[0] = True
             root.quit()
 
-        # Make it fullscreen
-        root.attributes('-fullscreen', True)
+        # Position window on the correct monitor
+        # On Wayland, fullscreen mode ignores geometry hints, so we use a borderless window instead
+        geometry_str = f"{display_width}x{display_height}+{monitor_left}+{monitor_top}"
+        print(f"Setting window geometry: {geometry_str}")
+        root.geometry(geometry_str)
+
+        # Remove window decorations for a clean fullscreen-like experience
+        root.overrideredirect(True)
         root.attributes('-topmost', True)
 
-        canvas = tk.Canvas(root, width=tk_screen_width, height=tk_screen_height, highlightthickness=0)
+        # Force window manager to process the geometry
+        root.update_idletasks()
+
+        canvas = tk.Canvas(root, width=display_width, height=display_height, highlightthickness=0)
         canvas.pack()
 
         # Display the scaled image
@@ -186,15 +223,15 @@ class ScreenCapture:
         root.photo = photo
 
         # Draw instructions overlay at top
-        canvas.create_rectangle(0, 0, tk_screen_width, 120, fill='black', stipple='gray50')
+        canvas.create_rectangle(0, 0, display_width, 120, fill='black', stipple='gray50')
         canvas.create_text(
-            tk_screen_width // 2, 40,
+            display_width // 2, 40,
             text="Click TOP-LEFT corner, then BOTTOM-RIGHT corner",
             fill='yellow',
             font=('Arial', 24, 'bold')
         )
         canvas.create_text(
-            tk_screen_width // 2, 80,
+            display_width // 2, 80,
             text="Press ESC to cancel",
             fill='yellow',
             font=('Arial', 16)
