@@ -10,16 +10,17 @@ class DQN(nn.Module):
 
         # CNN feature extractor
         self.conv = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=8, stride=4),
+            nn.Conv2d(1 * 4, 32, kernel_size=8, stride=4),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
             nn.ReLU(),
             nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
         )
 
         # Calculate conv output size
-        self._conv_out_size = self._get_conv_out((3, input_height, input_width))
+        self._conv_out_size = self._get_conv_out((1 * 4, input_height, input_width))
 
         # Q-value head
         self.fc = nn.Sequential(

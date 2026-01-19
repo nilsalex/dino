@@ -203,3 +203,5 @@ logs/
 captured_frames/
 dino_tensorboard/
 *.zip
+
+debug_frames/
