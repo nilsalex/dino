@@ -1,222 +1,105 @@
+# ruff: noqa: E402
 import gi
 
-from game_over import check_game_over
-
 gi.require_version("Gst", "1.0")
-import os
-import sys
+
 import time
-from collections import deque
-from queue import Empty, Full, Queue
 
 import numpy as np
-import torch
-from evdev import UInput
-from evdev import ecodes as e
-from gi.repository import GLib, Gst
-from PIL import Image
+from gi.repository import Gst
 
-from dqn import DQN
-
-SAVE_FRAMES = True
-SAVE_DIR = "./debug_frames"
-
-if SAVE_FRAMES:
-    os.makedirs(SAVE_DIR, exist_ok=True)
-
-OUTPUT_WIDTH = 84
-OUTPUT_HEIGHT = 84
-CHANNELS = 1
-N_ACTIONS = 2
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = DQN(OUTPUT_HEIGHT, OUTPUT_WIDTH, N_ACTIONS).to(device)
-frame_buffer: deque = deque(maxlen=4)
+from src.agents.dqn_agent import DQNAgent
+from src.capture.frame_processor import FrameProcessor
+from src.capture.gstreamer import GStreamerPipeline
+from src.core.config import Config
+from src.env.game_interface import GameInterface
+from src.env.state_monitor import StateMonitor
+from src.utils.metrics import MetricsTracker
 
 
-# ========================
-# GLOBALS
-# ========================
-frame_queue: Queue = Queue(maxsize=2)
-input_frame_count = 0
-
-frame_times = []
-last_time = time.perf_counter()
-
-
-def on_message(_bus: Gst.Bus, message: Gst.Message, loop: GLib.MainLoop):
-    msg_type = message.type
-    if msg_type == Gst.MessageType.EOS:
-        print("End of stream")
-        loop.quit()
-    elif msg_type == Gst.MessageType.ERROR:
-        err, debug = message.parse_error()
-        print(f"Error: {err.message}")
-        print(f"Debug: {debug}")
-        loop.quit()
-    elif msg_type == Gst.MessageType.WARNING:
-        err, debug = message.parse_warning()
-        print(f"Warning: {err.message}")
-    return True
-
-
-def on_new_sample(sink, _data):
-    global input_frame_count
-
-    sample = sink.emit("pull-sample")
+def pull_frame_from_appsink(appsink: Gst.Element, frame_processor: FrameProcessor) -> None:
+    sample = appsink.emit("pull-sample")  # type: ignore[arg-type]
     if not sample:
-        return Gst.FlowReturn.OK
+        return
 
     buffer = sample.get_buffer()
     success, map_info = buffer.map(Gst.MapFlags.READ)
 
     if success:
-        input_frame_count += 1
         try:
-            frame = np.ndarray(shape=(OUTPUT_HEIGHT, OUTPUT_WIDTH), dtype=np.uint8, buffer=map_info.data)
-
-            if SAVE_FRAMES and input_frame_count < 100:
-                img = Image.fromarray(frame, mode="L")
-                path = f"{SAVE_DIR}/frame_{input_frame_count:04d}.png"
-                img.save(path)
-                print(f"Saved: {path}")
-
-            try:
-                frame_queue.put_nowait(frame.copy())
-            except Full:
-                print("Warning: frame queue full, could not enqueue frame")
-                pass
-
+            frame_arr = np.ndarray(
+                shape=(frame_processor.config.output_height, frame_processor.config.output_width),
+                dtype=np.uint8,
+                buffer=map_info.data,
+            )
+            frame_processor.add_frame(frame_arr)
         finally:
             buffer.unmap(map_info)
 
-    return Gst.FlowReturn.OK
 
-
-def preprocess():
-    stacked = np.stack(list(frame_buffer), axis=0)
-    tensor = torch.from_numpy(stacked).float() / 255.0
-    return tensor.unsqueeze(0).to(device)
-
-
-def run_action(ui, action):
-    match action:
-        case 1:
-            ui.write(e.EV_KEY, e.KEY_UP, 1)
-            ui.write(e.EV_KEY, e.KEY_UP, 0)
-            ui.syn()
-        case _:
-            pass
-
-
-def run_timed(f, *args):
-    global frame_times, last_time
-
-    now = time.perf_counter()
+def process_frames(  # type: ignore[misc]
+    game_interface: GameInterface,
+    state_monitor: StateMonitor,
+    agent: DQNAgent,
+    frame_processor: FrameProcessor,
+    metrics_tracker: MetricsTracker,
+) -> bool:
     process_start = time.perf_counter()
 
-    if not f(*args):
+    state = frame_processor.get_state()
+
+    if state is None:
+        if not frame_processor.buffer_ready():
+            print(f"Buffering frames... {len(frame_processor.frame_buffer)}/{frame_processor.config.frame_stack}")
         return True
 
+    if state_monitor.is_game_over(frame_processor.frame_buffer):
+        print("GAME OVER")
+        return True
+
+    action = agent.act(state)
+    print(f"Executing action: {action}", end="\n")
+    game_interface.execute_action(action)
+
     process_time = time.perf_counter() - process_start
-
-    frame_time = now - last_time
-    last_time = now
-
-    # Add to rolling window
-    frame_times.append((now, frame_time))
-
-    # Remove entries older than 1 second
-    cutoff = now - 1.0
-    while frame_times and frame_times[0][0] < cutoff:
-        frame_times.pop(0)
-
-    # Calculate averages over 1-second window
-    if frame_times:
-        fps = len(frame_times)  # Frames in last second = FPS
-        avg_frame_time = sum(ft for _, ft in frame_times) / len(frame_times)
-    else:
-        fps = 0
-        avg_frame_time = 0
-
-    queue_latency_ms = frame_queue.qsize() * avg_frame_time * 1000
+    metrics = metrics_tracker.update(process_time, frame_processor.queue_size, frame_processor.max_queue_size)
 
     print(
-        f"FPS: {fps:5.1f} | "
-        f"Avg: {avg_frame_time * 1000:5.1f}ms | "
-        f"Proc: {process_time * 1000:5.1f}ms | "
-        f"Queue: {frame_queue.qsize()}/{frame_queue.maxsize} ({queue_latency_ms:4.1f}ms)",
+        f"FPS: {metrics.fps:5.1f} | "
+        f"Avg: {metrics.avg_frame_time * 1000:5.1f}ms | "
+        f"Proc: {metrics.process_time * 1000:5.1f}ms | "
+        f"Queue: {metrics.queue_size}/{metrics.queue_max_size} ({metrics.queue_latency_ms:4.1f}ms)",
         end="\r",
     )
 
     return True
 
 
-def process_frames(ui):
-    try:
-        frame = frame_queue.get_nowait()
-        frame_buffer.append(frame.copy())
-
-        if len(frame_buffer) < 4:
-            print(f"Buffering frames... {len(frame_buffer)}/4")
-            return True
-
-        if check_game_over(frame_buffer):
-            print("GAME OVER")
-
-        state = preprocess()
-        action = model.select_action(state, epsilon=0.1)
-
-        run_action(ui, action)
-        return True
-
-    except Empty:
-        return False
-
-
 def main():
-    # Init evdev input
-    ui = UInput()
+    config = Config()
 
-    # Init GStreamer
-    Gst.init(sys.argv)
+    game_interface = GameInterface()
+    state_monitor = StateMonitor()
+    agent = DQNAgent(config)
+    frame_processor = FrameProcessor(config)
+    metrics_tracker = MetricsTracker()
 
-    loop = GLib.MainLoop()
+    gst_pipeline = GStreamerPipeline(config)
+    gst_pipeline.create_pipeline()
+    gst_pipeline.start()
 
-    # Init pipeline
-    pipeline = Gst.parse_launch(
-        "v4l2src device=/dev/video0 do-timestamp=true ! "
-        + "videoscale ! "
-        + "video/x-raw,width=84,height=84,framerate=30/1 ! "
-        + "queue max-size-buffers=1 leaky=downstream ! "
-        + "videoconvert ! "
-        + "video/x-raw,format=GRAY8 ! "
-        + "appsink name=appsink emit-signals=true max-buffers=2 drop=true"
-    )
-    sink = pipeline.get_by_name("appsink")
-    sink.connect("new-sample", on_new_sample, None)
+    appsink = gst_pipeline.pipeline.get_by_name("appsink")  # type: ignore[arg-type]
 
-    # Connect bus messages
-    bus = pipeline.get_bus()
-    bus.add_signal_watch()
-    bus.connect("message", on_message, loop)
-
-    # Start
-    pipeline.set_state(Gst.State.PLAYING)
-    print("Pipeline started, running main loop...")
-
-    GLib.idle_add(run_timed, process_frames, ui)
-
-    # Run main loop
     try:
-        loop.run()
+        while True:
+            pull_frame_from_appsink(appsink, frame_processor)  # type: ignore[arg-type]
+            process_frames(game_interface, state_monitor, agent, frame_processor, metrics_tracker)
+            time.sleep(0.001)
     except KeyboardInterrupt:
         print("\nStopping...")
-
-    ui.close()
-
-    # Cleanup
-    pipeline.set_state(Gst.State.NULL)
+    finally:
+        gst_pipeline.stop()
+        game_interface.close()
 
 
 if __name__ == "__main__":
