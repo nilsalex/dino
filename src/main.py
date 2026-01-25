@@ -6,7 +6,8 @@ gi.require_version("Gst", "1.0")
 import os
 import sys
 import time
-from queue import Empty, Queue
+from collections import deque
+from queue import Empty, Full, Queue
 
 import numpy as np
 import torch
@@ -14,7 +15,6 @@ from evdev import UInput
 from evdev import ecodes as e
 from gi.repository import GLib, Gst
 from PIL import Image
-from collections import deque
 
 from dqn import DQN
 
@@ -31,13 +31,13 @@ N_ACTIONS = 2
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = DQN(OUTPUT_HEIGHT, OUTPUT_WIDTH, N_ACTIONS).to(device)
-frame_buffer = deque(maxlen=4)
+frame_buffer: deque = deque(maxlen=4)
 
 
 # ========================
 # GLOBALS
 # ========================
-frame_queue = Queue(maxsize=2)
+frame_queue: Queue = Queue(maxsize=2)
 input_frame_count = 0
 
 frame_times = []
@@ -83,7 +83,8 @@ def on_new_sample(sink, _data):
 
             try:
                 frame_queue.put_nowait(frame.copy())
-            except:
+            except Full:
+                print("Warning: frame queue full, could not enqueue frame")
                 pass
 
         finally:
@@ -183,7 +184,15 @@ def main():
     loop = GLib.MainLoop()
 
     # Init pipeline
-    pipeline = Gst.parse_launch("v4l2src device=/dev/video0 do-timestamp=true ! videoscale ! video/x-raw,width=84,height=84,framerate=30/1 ! queue max-size-buffers=1 leaky=downstream ! videoconvert ! video/x-raw,format=GRAY8 ! appsink name=appsink emit-signals=true max-buffers=2 drop=true")
+    pipeline = Gst.parse_launch(
+        "v4l2src device=/dev/video0 do-timestamp=true ! "
+        + "videoscale ! "
+        + "video/x-raw,width=84,height=84,framerate=30/1 ! "
+        + "queue max-size-buffers=1 leaky=downstream ! "
+        + "videoconvert ! "
+        + "video/x-raw,format=GRAY8 ! "
+        + "appsink name=appsink emit-signals=true max-buffers=2 drop=true"
+    )
     sink = pipeline.get_by_name("appsink")
     sink.connect("new-sample", on_new_sample, None)
 
