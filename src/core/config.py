@@ -18,7 +18,7 @@ class Config:
     queue_max_size: int = 2
     queue_leaky: str = "downstream"
     frame_queue_maxsize: int = 2
-    save_frames: bool = True
+    save_frames: bool = False
     save_dir: Path = Path("./debug_frames")
     save_max_frames: int = 100
     learning_rate: float = 1e-4
@@ -29,6 +29,9 @@ class Config:
     epsilon_decay: int = 10000
     target_update_freq: int = 1000
     replay_buffer_size: int = 100000
+    min_buffer_size: int = 10000
+    checkpoint_path: Path = Path("./checkpoints")
+    checkpoint_freq: int = 10000
     device: torch.device | None = None
 
     def __post_init__(self):

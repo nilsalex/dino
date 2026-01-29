@@ -20,7 +20,8 @@
         {
           default = pkgs.mkShell {
             packages = [
-              pkgs.python3
+              pkgs.opencode
+              pkgs.python314
               pkgs.uv
               pkgs.gst_all_1.gstreamer
               pkgs.gst_all_1.gst-plugins-base
@@ -38,6 +39,7 @@
                 pkgs.gst_all_1.gstreamer.out
                 pkgs.gst_all_1.gst-plugins-base
               ];
+              UV_PYTHON = pkgs.python314;
             };
 
             shellHook = ''

@@ -1,5 +1,7 @@
 """Base agent interface for reinforcement learning."""
 
+from src.core.types import Experience
+
 
 class Agent:
     """Base agent interface for RL algorithms."""
@@ -8,7 +10,7 @@ class Agent:
         """Select an action given a state."""
         raise NotImplementedError
 
-    def train(self, experience: object) -> dict[str, float]:
+    def train(self, experience: Experience) -> dict[str, float]:
         """Train the agent on a single experience.
 
         Args:

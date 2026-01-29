@@ -46,7 +46,7 @@ class MetricsTracker:
             self.frame_times.pop(0)
 
         if self.frame_times:
-            fps = len(self.frame_times)
+            fps = float(len(self.frame_times))
             avg_frame_time = sum(ft for _, ft in self.frame_times) / len(self.frame_times)
         else:
             fps = 0.0

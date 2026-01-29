@@ -12,3 +12,6 @@ lint:
 format:
 	uv run ruff format src/
 	uv run ruff check --fix src/
+
+run:
+	uv run python -m src.main

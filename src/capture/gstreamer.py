@@ -71,7 +71,7 @@ class GStreamerPipeline:
         if sink is None:
             raise RuntimeError(f"Sink '{sink_name}' not found in pipeline")
         sink.set_property("emit-signals", True)
-        sink.connect("new-sample", callback, data)  # type: ignore[union-attr]
+        sink.connect("new-sample", callback, data)  # type: ignore[union-attr,arg-type]
 
     def start(self) -> None:
         """Start the pipeline and main loop."""

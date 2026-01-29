@@ -1,6 +1,6 @@
 """Type definitions for the DINO reinforcement learning system."""
 
-from collections import deque
+from collections import deque, namedtuple
 from typing import Any
 
 import numpy as np
@@ -15,20 +15,10 @@ State = torch.Tensor
 Reward = float
 Done = bool
 
-
-class Experience:
-    """A single experience tuple for replay buffer."""
-
-    state: State
-    action: Action
-    reward: Reward
-    next_state: State | None
-    done: Done
+_ExperienceImpl = namedtuple("_ExperienceImpl", ["state", "action", "reward", "next_state", "done"])
 
 
-def gst_callback(_bus: Any, _message: Any, _loop: Any) -> bool:
-    """Type hint for GStreamer bus callback."""
-    ...
+Experience = _ExperienceImpl
 
 
 def sample_callback(*_args: object) -> Any:
