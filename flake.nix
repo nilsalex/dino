@@ -21,25 +21,34 @@
           default = pkgs.mkShell {
             packages = [
               pkgs.opencode
-              pkgs.python314
+              pkgs.python312
               pkgs.uv
               pkgs.gst_all_1.gstreamer
               pkgs.gst_all_1.gst-plugins-base
               pkgs.gst_all_1.gst-plugins-good
               pkgs.gst_all_1.gst-plugins-bad
+              pkgs.cairo
+              pkgs.pkg-config
+              pkgs.dbus
             ];
 
             env = lib.optionalAttrs pkgs.stdenv.isLinux {
-              # Python libraries often load native shared objects using dlopen(3).
-              # Setting LD_LIBRARY_PATH makes the dynamic library loader aware of libraries without using RPATH for lookup.
               LD_LIBRARY_PATH = lib.makeLibraryPath (
-                pkgs.pythonManylinuxPackages.manylinux1 ++ [ pkgs.gst_all_1.gstreamer ]
+                pkgs.pythonManylinuxPackages.manylinux1
+                ++ [
+                  pkgs.gst_all_1.gstreamer
+                  pkgs.cairo
+                ]
               );
               GI_TYPELIB_PATH = lib.makeSearchPath "lib/girepository-1.0" [
                 pkgs.gst_all_1.gstreamer.out
                 pkgs.gst_all_1.gst-plugins-base
               ];
-              UV_PYTHON = pkgs.python314;
+              UV_PYTHON = pkgs.python312;
+              PKG_CONFIG_PATH = lib.makeSearchPath "lib/pkgconfig" [
+                pkgs.cairo
+                pkgs.dbus
+              ];
             };
 
             shellHook = ''

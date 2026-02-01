@@ -26,7 +26,7 @@ class Config:
     gamma: float = 0.99
     epsilon_start: float = 1.0
     epsilon_end: float = 0.1
-    epsilon_decay: int = 10000
+    epsilon_decay: int = 100000
     target_update_freq: int = 1000
     replay_buffer_size: int = 100000
     min_buffer_size: int = 10000

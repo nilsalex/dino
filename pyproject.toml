@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "dino"
 version = "0.1.0"
 description = "Chrome Dino Game RL Agent"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "gymnasium>=0.29.0",
     "numpy>=1.24.0",
@@ -18,6 +18,7 @@ dependencies = [
     "dbus-python>=1.3.0",
     "opencv-python-headless>=4.11.0.86",
     "evdev>=1.9.2",
+    "ray[rllib,client]>=2.0.0",
 ]
 
 [tool.ruff]
