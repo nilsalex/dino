@@ -25,13 +25,14 @@ class Config:
     batch_size: int = 32
     gamma: float = 0.99
     epsilon_start: float = 1.0
-    epsilon_end: float = 0.1
-    epsilon_decay: int = 100000
+    epsilon_end: float = 0.001
+    epsilon_decay: int = 50000
     target_update_freq: int = 1000
     replay_buffer_size: int = 100000
     min_buffer_size: int = 10000
     checkpoint_path: Path = Path("./checkpoints")
     checkpoint_freq: int = 10000
+    max_episodes: int = 999999999
     device: torch.device | None = None
 
     def __post_init__(self):
