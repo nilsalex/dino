@@ -81,6 +81,11 @@ def main():
     training_thread = TrainingThread(config, buffer, remote_trainer, on_weights_updated)
     training_thread.start()
 
+    # Sync initial weights from remote to local model
+    print("Syncing initial weights from remote trainer...")
+    remote_state = ray.get(remote_trainer.get_model_state.remote())  # type: ignore[arg-type]
+    local_model.update_state_dict(remote_state)
+
     epsilon = config.epsilon_start
     step_count = 0
     episode_count = 0
@@ -88,11 +93,12 @@ def main():
     is_evaluating = True
     eval_step_count = 0
     eval_episode_count = 1
+    eval_episodes_remaining = 5
     best_eval_score = 0
 
     print("Starting training with remote GPU...")
     print("Make sure Chrome Dino game is open and visible!")
-    print(f"[EVAL] Starting initial greedy evaluation episode (baseline)\n")
+    print("[EVAL] Starting initial greedy evaluation episode (baseline)\n")
 
     gst_pipeline = GStreamerPipeline(config)
     gst_pipeline.create_pipeline()
@@ -143,8 +149,17 @@ def main():
                             if eval_step_count > best_eval_score:
                                 best_eval_score = eval_step_count
                                 print(f"[BEST] New evaluation score: {best_eval_score}\\n")
-                            is_evaluating = False
+                            eval_episodes_remaining -= 1
+                            eval_episode_count += 1
                             eval_step_count = 0
+                            if eval_episodes_remaining > 0:
+                                print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\\n")
+                                reset_phase = 1
+                                previous_state = None
+                                continue
+                            else:
+                                is_evaluating = False
+                                eval_episodes_remaining = 5
                         else:
                             print(f"[EVAL] Episode too short ({eval_step_count} steps), restarting eval...")
                             reset_phase = 1
@@ -158,11 +173,10 @@ def main():
                         if episode_count % 50 == 0:
                             is_evaluating = True
                             eval_episode_count += 1
-                            print(f"[EVAL] Starting greedy evaluation episode {eval_episode_count}\\n")
+                            eval_episodes_remaining = 5
+                            print("[EVAL] Starting 5 consecutive greedy evaluation episodes\\n")
                     reset_phase = 0
-                elif reset_phase > 0:
-                    reset_phase = 0
-                elif reset_phase > 0:
+                elif reset_phase > 0 or reset_phase > 0:
                     reset_phase = 0
 
             # Local inference for fast action selection
@@ -187,7 +201,8 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
-                reward = 0.1 + (-0.02 if action != 0 else 0)
+                # reward = 0.1 + (-0.02 if action != 0 else 0)
+                reward = 0.1
                 buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), is_game_over)
 
                 # Update target network remotely periodically

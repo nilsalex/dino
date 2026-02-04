@@ -3,7 +3,8 @@
 import ray
 
 
-@ray.remote(num_gpus=1)
+# @ray.remote(num_gpus=1)
+@ray.remote(num_gpus=0)
 class SimpleRemoteTrainer:
     """Remote trainer that only accepts raw tensors."""
 
