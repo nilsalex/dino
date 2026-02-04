@@ -1,4 +1,4 @@
-"""Main training loop with decoupled background training and local inference."""
+"""Main training loop with locally trained DQN and decoupled background training."""
 
 
 # ruff: noqa: E402
@@ -10,19 +10,18 @@ gi.require_version("Gst", "1.0")
 import random
 import time
 
-import ray
 import torch
 from gi.repository import Gst
 
 from src.actors.local_inference_model import LocalInferenceModel
-from src.agents.simple_ray_trainer import SimpleRemoteTrainer
+from src.agents.local_trainer import LocalDQNTrainer
 from src.buffers.thread_safe_buffer import ThreadSafeExperienceBuffer
 from src.capture.frame_processor import FrameProcessor
 from src.capture.gstreamer import GStreamerPipeline
 from src.core.config import Config
 from src.env.game_interface import GameInterface
 from src.env.state_monitor import StateMonitor
-from src.training.training_thread import TrainingThread
+from src.training.local_training_thread import LocalTrainingThread
 from src.utils.metrics import MetricsTracker
 
 
@@ -54,12 +53,8 @@ def pull_frame_from_appsink(appsink: Gst.Element, frame_processor: FrameProcesso
 def main():
     config = Config()
 
-    ray_address = "ray://localhost:10001"
-    print(f"Connecting to Ray server at {ray_address}")
-    ray.init(address=ray_address, ignore_reinit_error=True)
-
-    print("Creating remote trainer...")
-    remote_trainer = SimpleRemoteTrainer.remote(n_actions=config.n_actions)
+    print("Creating local trainer...")
+    local_trainer = LocalDQNTrainer(config)
 
     print("Initializing thread-safe experience buffer...")
     buffer = ThreadSafeExperienceBuffer(config)
@@ -73,18 +68,13 @@ def main():
     metrics_tracker = MetricsTracker()
 
     def on_weights_updated(state_dict: dict[str, torch.Tensor]) -> None:
-        """Callback to update local model when weights sync from remote."""
+        """Callback to update local model when weights update."""
 
         local_model.update_state_dict(state_dict)
 
     print("Starting background training thread...")
-    training_thread = TrainingThread(config, buffer, remote_trainer, on_weights_updated)
+    training_thread = LocalTrainingThread(config, buffer, local_trainer, on_weights_updated)
     training_thread.start()
-
-    # Sync initial weights from remote to local model
-    print("Syncing initial weights from remote trainer...")
-    remote_state = ray.get(remote_trainer.get_model_state.remote())  # type: ignore[arg-type]
-    local_model.update_state_dict(remote_state)
 
     epsilon = config.epsilon_start
     step_count = 0
@@ -96,11 +86,13 @@ def main():
     eval_episodes_remaining = 5
     best_eval_score = 0
 
+    total_reward = 0.0
+    curr_reward = 0.0
     episode_steps = 0
 
     min_episode_steps = 50
 
-    print("Starting training with remote GPU...")
+    print("Starting local training...")
     print("Make sure Chrome Dino game is open and visible!")
     print("[EVAL] Starting initial greedy evaluation episode (baseline)\n")
 
@@ -146,18 +138,18 @@ def main():
                     if is_evaluating:
                         if eval_step_count > 5:
                             print(
-                                f"\\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\\n",
+                                f"\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\n",
                                 end="",
                                 flush=True,
                             )
                             if eval_step_count > best_eval_score:
                                 best_eval_score = eval_step_count
-                                print(f"[BEST] New evaluation score: {best_eval_score}\\n")
+                                print(f"[BEST] New evaluation score: {best_eval_score}\n")
                             eval_episodes_remaining -= 1
                             eval_episode_count += 1
                             eval_step_count = 0
                             if eval_episodes_remaining > 0:
-                                print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\\n")
+                                print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\n")
                                 reset_phase = 1
                                 previous_state = None
                                 continue
@@ -173,19 +165,26 @@ def main():
                     else:
                         if episode_steps >= min_episode_steps:
                             episode_count += 1
-                            print(f"\\nEpisode {episode_count} complete. Steps: {step_count}\\n", end="", flush=True)
+                            total_reward += curr_reward
+                            print(
+                                f"\nEpisode {episode_count} complete. Steps: {step_count}, Reward: {curr_reward:.2f}\n",
+                                end="",
+                                flush=True,
+                            )
+                            curr_reward = 0.0
                             episode_steps = 0
 
                             if episode_count % 50 == 0:
                                 is_evaluating = True
                                 eval_episode_count += 1
                                 eval_episodes_remaining = 5
-                                print("[EVAL] Starting 5 consecutive greedy evaluation episodes\\n")
+                                print("[EVAL] Starting 5 consecutive greedy evaluation episodes\n")
                         else:
                             print(f"[WARN] Episode too short ({episode_steps} steps), not counting")
+                            curr_reward = 0.0
                             episode_steps = 0
                     reset_phase = 0
-                elif reset_phase > 0 or reset_phase > 0:
+                elif reset_phase > 0:
                     reset_phase = 0
 
             # Local inference for fast action selection
@@ -210,14 +209,14 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
-                # reward = 0.1 + (-0.02 if action != 0 else 0)
                 reward = 0.1
                 buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), is_game_over)
+                curr_reward += reward
                 episode_steps += 1
 
-                # Update target network remotely periodically
+                # Update target network locally
                 if step_count > 0 and step_count % 1000 == 0:
-                    remote_trainer.update_target.remote()  # type: ignore[arg-type]
+                    local_trainer.update_target()
 
                 step_count += 1
 
@@ -239,6 +238,7 @@ def main():
                     f"Step:{step_count:5d} "
                     f"Eps:{epsilon:.2f} "
                     f"Buf:{buffer.size():5d} "
+                    f"Rwd:{curr_reward if not is_evaluating else 0.0:.1f} "
                     f"Loss:{training_stats['last_loss']:.4f}"
                 )
                 print("\x1b[K" + line, end="\r", flush=True)
@@ -254,7 +254,6 @@ def main():
         training_thread.stop()
         gst_pipeline.stop()
         game_interface.close()
-        ray.shutdown()
 
 
 if __name__ == "__main__":
