@@ -92,7 +92,7 @@ def main():
     curr_reward = 0.0
     episode_steps = 0
 
-    min_episode_steps = 50
+    min_episode_steps = 20
 
     print("Starting local training...")
     print("Make sure Chrome Dino game is open and visible!")
@@ -113,6 +113,10 @@ def main():
 
     previous_state: torch.Tensor | None = None
     is_resetting: bool = False
+    reset_delay_counter: int = 0
+    reset_delay_frames: int = 30
+    reset_cooldown_counter: int = 0
+    reset_cooldown_frames: int = 10
 
     frame_skip_counter = 0
     current_action: int | None = None
@@ -139,6 +143,17 @@ def main():
                 and not was_episode_limit_reached
             ):
                 print(f"[SUCCESS] Episode reached {config.max_episode_steps} steps, waiting for game over...")
+                # Add success bonus reward when we hit the limit
+                curr_reward += 100.0
+                # Record bonus as terminal transition in replay buffer
+                if current_action is not None and previous_state is not None and current_state is not None:
+                    buffer.add(
+                        previous_state.squeeze(0),
+                        current_action,
+                        100.0,
+                        current_state.squeeze(0),
+                        True,
+                    )
                 waiting_for_game_over = True
                 was_episode_limit_reached = True
 
@@ -148,32 +163,48 @@ def main():
                     continue
                 waiting_for_game_over = False
 
-            # Handle game over and reset
+            # Handle game over and surgical reset
             if is_game_over:
                 if not is_resetting:
-                    game_interface.reset_game()
                     is_resetting = True
+                    reset_delay_counter = 0
+                    reset_cooldown_counter = 0
+                elif reset_delay_counter < reset_delay_frames:
+                    reset_delay_counter += 1
+                else:
+                    # Wait has passed, send jump action to leave game over state
+                    game_interface.execute_action(1)
+                    reset_cooldown_counter = 0
+
+                # Skip normal action and recording during reset
+                continue
             elif is_resetting:
-                # Reset complete - game is now running again
-                is_resetting = False
-                episode_terminated_by_limit = was_episode_limit_reached
+                # Game is running again, but wait for cooldown to pass
+                reset_cooldown_counter += 1
+                if reset_cooldown_counter >= reset_cooldown_frames:
+                    # Reset complete - game is now stably running
+                    is_resetting = False
+                    episode_terminated_by_limit = was_episode_limit_reached
+                else:
+                    # Still in cooldown, skip action and recording
+                    continue
 
                 # Handle episode completion
                 if is_evaluating:
                     if eval_step_count > 5:
                         print(
-                            f"\\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\\n",
+                            f"\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\n",
                             end="",
                             flush=True,
                         )
                         if eval_step_count > best_eval_score:
                             best_eval_score = eval_step_count
-                            print(f"[BEST] New evaluation score: {best_eval_score}\\n")
+                            print(f"[BEST] New evaluation score: {best_eval_score}\n")
                         eval_episodes_remaining -= 1
                         eval_episode_count += 1
                         eval_step_count = 0
                         if eval_episodes_remaining > 0:
-                            print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\\n")
+                            print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\n")
                             previous_state = None
                             current_action = None
                             frame_skip_counter = 0
@@ -195,7 +226,7 @@ def main():
                         status = "[SUCCESS]" if episode_terminated_by_limit else "[GAME OVER]"
                         print(
                             f"{status} Episode {episode_count} complete. "
-                            f"Steps: {step_count}, Reward: {curr_reward:.2f}\\n",
+                            f"Steps: {step_count}, Reward: {curr_reward:.2f}\n",
                             end="",
                             flush=True,
                         )
@@ -206,7 +237,7 @@ def main():
                             is_evaluating = True
                             eval_episode_count += 1
                             eval_episodes_remaining = 5
-                            print("[EVAL] Starting 5 consecutive greedy evaluation episodes\\n")
+                            print("[EVAL] Starting 5 consecutive greedy evaluation episodes\n")
                     else:
                         print(f"[WARN] Episode too short ({episode_steps} steps), not counting")
                         curr_reward = 0.0
@@ -216,9 +247,6 @@ def main():
                 frame_skip_counter = 0
                 waiting_for_game_over = False
                 was_episode_limit_reached = False
-
-            # Skip action execution and experience recording during reset or waiting for game over
-            if is_resetting or waiting_for_game_over:
                 continue
 
             # Local inference for fast action selection
@@ -250,11 +278,11 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
-                # Reward: survival + success bonus at max_episode_steps
-                reward = 100.0 if episode_steps == config.max_episode_steps else 0.1
+                # Reward: survival (0.1 per step)
+                reward = 0.1
 
-                episode_done = is_game_over or episode_steps >= config.max_episode_steps
-                buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), episode_done)
+                # Record transition (terminal only on natural game over)
+                buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), is_game_over)
                 curr_reward += reward
                 episode_steps += 1
 
@@ -294,6 +322,17 @@ def main():
         print("\nStopping...")
 
     finally:
+        print(f"\nReplay buffer: {buffer.size()} / {buffer.max_size} transitions")
+        if buffer.size() > 0:
+            # Print last 10 transitions to verify rewards are recorded
+            sample_size = min(10, buffer.size())
+            with buffer.lock:
+                print(f"Last {sample_size} transitions in buffer:")
+                for i in range(-sample_size, 0):
+                    action = buffer._actions[i]
+                    reward = buffer._rewards[i]
+                    done = buffer._dones[i]
+                    print(f"  [{i}]: action={action}, reward={reward}, done={done}")
         print("Stopping training thread...")
         training_thread.stop()
         gst_pipeline.stop()
