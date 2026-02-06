@@ -1,5 +1,6 @@
 """Configuration for the DINO reinforcement learning system."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,7 +15,7 @@ class Config:
     n_actions: int = 2
     frame_stack: int = 4
     frame_skip: int = 4
-    video_device: str = "/dev/video0"
+    video_device: str = os.getenv("VIDEO_DEVICE", "/dev/video0")
     fps: int = 30
     queue_max_size: int = 2
     queue_leaky: str = "downstream"
