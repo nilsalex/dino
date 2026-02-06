@@ -225,7 +225,7 @@ def main():
                         total_reward += curr_reward
                         status = "[SUCCESS]" if episode_terminated_by_limit else "[GAME OVER]"
                         print(
-                            f"{status} Episode {episode_count} complete. "
+                            f"\r\x1b[K{status} Episode {episode_count} complete. "
                             f"Steps: {step_count}, Reward: {curr_reward:.2f}\n",
                             end="",
                             flush=True,
