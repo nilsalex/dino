@@ -112,7 +112,7 @@ def main():
         raise RuntimeError("Could not get appsink from GStreamer pipeline")
 
     previous_state: torch.Tensor | None = None
-    reset_phase = 0
+    is_resetting: bool = False
 
     frame_skip_counter = 0
     current_action: int | None = None
@@ -133,7 +133,11 @@ def main():
             is_game_over = state_monitor.is_game_over(frame_processor.frame_buffer)
 
             # Handle episode termination
-            if episode_steps >= config.max_episode_steps and not waiting_for_game_over:
+            if (
+                episode_steps >= config.max_episode_steps
+                and not waiting_for_game_over
+                and not was_episode_limit_reached
+            ):
                 print(f"[SUCCESS] Episode reached {config.max_episode_steps} steps, waiting for game over...")
                 waiting_for_game_over = True
                 was_episode_limit_reached = True
@@ -144,85 +148,77 @@ def main():
                     continue
                 waiting_for_game_over = False
 
+            # Handle game over and reset
             if is_game_over:
-                if reset_phase == 0:
+                if not is_resetting:
                     game_interface.reset_game()
-                    reset_phase = 1
-                elif reset_phase == 1:
-                    reset_phase = 2
-                elif reset_phase == 2:
-                    reset_phase = 3
-            else:
-                if reset_phase == 3:
-                    episode_terminated_by_limit = was_episode_limit_reached
+                    is_resetting = True
+            elif is_resetting:
+                # Reset complete - game is now running again
+                is_resetting = False
+                episode_terminated_by_limit = was_episode_limit_reached
 
-                    # During reset (which takes 3 frames), skip action and recording
-                    if is_evaluating:
-                        if eval_step_count > 5:
-                            print(
-                                f"\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\n",
-                                end="",
-                                flush=True,
-                            )
-                            if eval_step_count > best_eval_score:
-                                best_eval_score = eval_step_count
-                                print(f"[BEST] New evaluation score: {best_eval_score}\n")
-                            eval_episodes_remaining -= 1
-                            eval_episode_count += 1
-                            eval_step_count = 0
-                            if eval_episodes_remaining > 0:
-                                print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\n")
-                                reset_phase = 1
-                                previous_state = None
-                                current_action = None
-                                frame_skip_counter = 0
-                                continue
-                            else:
-                                is_evaluating = False
-                                eval_episodes_remaining = 5
-                        else:
-                            print(f"[EVAL] Episode too short ({eval_step_count} steps), restarting eval...")
-                            reset_phase = 1
-                            eval_step_count = 0
+                # Handle episode completion
+                if is_evaluating:
+                    if eval_step_count > 5:
+                        print(
+                            f"\\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\\n",
+                            end="",
+                            flush=True,
+                        )
+                        if eval_step_count > best_eval_score:
+                            best_eval_score = eval_step_count
+                            print(f"[BEST] New evaluation score: {best_eval_score}\\n")
+                        eval_episodes_remaining -= 1
+                        eval_episode_count += 1
+                        eval_step_count = 0
+                        if eval_episodes_remaining > 0:
+                            print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\\n")
                             previous_state = None
                             current_action = None
                             frame_skip_counter = 0
                             continue
-                    else:
-                        if episode_steps >= min_episode_steps:
-                            episode_count += 1
-                            total_reward += curr_reward
-                            status = "[SUCCESS]" if episode_terminated_by_limit else "[GAME OVER]"
-                            print(
-                                f"{status} Episode {episode_count} complete. "
-                                f"Steps: {step_count}, Reward: {curr_reward:.2f}\n",
-                                end="",
-                                flush=True,
-                            )
-                            curr_reward = 0.0
-                            episode_steps = 0
-
-                            if episode_count % 50 == 0:
-                                is_evaluating = True
-                                eval_episode_count += 1
-                                eval_episodes_remaining = 5
-                                print("[EVAL] Starting 5 consecutive greedy evaluation episodes\n")
                         else:
-                            print(f"[WARN] Episode too short ({episode_steps} steps), not counting")
-                            curr_reward = 0.0
-                            episode_steps = 0
-                    reset_phase = 0
-                    current_action = None
-                    frame_skip_counter = 0
-                    waiting_for_game_over = False
-                    was_episode_limit_reached = False
-                elif reset_phase > 0:
-                    reset_phase = 0
-                    waiting_for_game_over = False
-                    was_episode_limit_reached = False
+                            is_evaluating = False
+                            eval_episodes_remaining = 5
+                    else:
+                        print(f"[EVAL] Episode too short ({eval_step_count} steps), restarting eval...")
+                        eval_step_count = 0
+                        previous_state = None
+                        current_action = None
+                        frame_skip_counter = 0
+                        continue
+                else:
+                    if episode_steps >= min_episode_steps:
+                        episode_count += 1
+                        total_reward += curr_reward
+                        status = "[SUCCESS]" if episode_terminated_by_limit else "[GAME OVER]"
+                        print(
+                            f"{status} Episode {episode_count} complete. "
+                            f"Steps: {step_count}, Reward: {curr_reward:.2f}\\n",
+                            end="",
+                            flush=True,
+                        )
+                        curr_reward = 0.0
+                        episode_steps = 0
 
-            # Skip action execution and experience recording during reset phases or waiting for natural game over
-            if reset_phase > 0 or waiting_for_game_over:
+                        if episode_count % 50 == 0:
+                            is_evaluating = True
+                            eval_episode_count += 1
+                            eval_episodes_remaining = 5
+                            print("[EVAL] Starting 5 consecutive greedy evaluation episodes\\n")
+                    else:
+                        print(f"[WARN] Episode too short ({episode_steps} steps), not counting")
+                        curr_reward = 0.0
+                        episode_steps = 0
+
+                current_action = None
+                frame_skip_counter = 0
+                waiting_for_game_over = False
+                was_episode_limit_reached = False
+
+            # Skip action execution and experience recording during reset or waiting for game over
+            if is_resetting or waiting_for_game_over:
                 continue
 
             # Local inference for fast action selection
