@@ -8,13 +8,14 @@ import ray
 class SimpleRemoteTrainer:
     """Remote trainer that only accepts raw tensors."""
 
-    def __init__(self, n_actions: int, output_shape: tuple[int, int] | None = None):
+    def __init__(self, n_actions: int, output_shape: tuple[int, int] | None = None, frame_stack: int = 4):
         import torch
         import torch.nn as nn
         import torch.optim as optim
 
         self.n_actions = n_actions
         self.output_shape = output_shape or (84, 84)
+        self.frame_stack = frame_stack
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,10 +33,10 @@ class SimpleRemoteTrainer:
         import torch.nn as nn
 
         class CNN(nn.Module):
-            def __init__(self, n_actions: int):
+            def __init__(self, n_actions: int, frame_stack: int):
                 super().__init__()
                 self.conv = nn.Sequential(
-                    nn.Conv2d(4, 16, kernel_size=8, stride=4),
+                    nn.Conv2d(frame_stack, 16, kernel_size=8, stride=4),
                     nn.ReLU(),
                     nn.Conv2d(16, 32, kernel_size=4, stride=2),
                     nn.ReLU(),
@@ -51,7 +52,7 @@ class SimpleRemoteTrainer:
                 x = x.view(x.size(0), -1)
                 return self.fc(x)
 
-        return CNN(self.n_actions)
+        return CNN(self.n_actions, self.frame_stack)
 
     def get_action(self, states):
         import numpy as np

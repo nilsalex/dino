@@ -59,13 +59,15 @@ def main():
     ray.init(address=ray_address, ignore_reinit_error=True)
 
     print("Creating remote trainer...")
-    remote_trainer = SimpleRemoteTrainer.remote(n_actions=config.n_actions)
+    remote_trainer = SimpleRemoteTrainer.remote(n_actions=config.n_actions, frame_stack=config.frame_stack)
 
     print("Initializing thread-safe experience buffer...")
     buffer = ThreadSafeExperienceBuffer(config)
 
     print("Initializing local inference model...")
-    local_model = LocalInferenceModel(n_actions=config.n_actions, device=config.device or torch.device("cpu"))
+    local_model = LocalInferenceModel(
+        n_actions=config.n_actions, device=config.device or torch.device("cpu"), frame_stack=config.frame_stack
+    )
 
     game_interface = GameInterface()
     state_monitor = StateMonitor()
@@ -210,7 +212,6 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
-                # reward = 0.1 + (-0.02 if action != 0 else 0)
                 reward = 0.1
                 buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), is_game_over)
                 episode_steps += 1

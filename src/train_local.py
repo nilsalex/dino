@@ -60,7 +60,9 @@ def main():
     buffer = ThreadSafeExperienceBuffer(config)
 
     print("Initializing local inference model...")
-    local_model = LocalInferenceModel(n_actions=config.n_actions, device=config.device or torch.device("cpu"))
+    local_model = LocalInferenceModel(
+        n_actions=config.n_actions, device=config.device or torch.device("cpu"), frame_stack=config.frame_stack
+    )
 
     game_interface = GameInterface()
     state_monitor = StateMonitor()

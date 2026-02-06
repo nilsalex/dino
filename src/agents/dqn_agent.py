@@ -20,12 +20,14 @@ class DQNAgent(Agent):
             config.output_height,
             config.output_width,
             config.n_actions,
+            config.frame_stack,
         ).to(config.device)
 
         self.target_model = DQN(
             config.output_height,
             config.output_width,
             config.n_actions,
+            config.frame_stack,
         ).to(config.device)
 
         self.target_model.load_state_dict(self.model.state_dict())

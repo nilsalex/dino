@@ -3,14 +3,15 @@ import torch.nn as nn
 
 
 class DQN(nn.Module):
-    def __init__(self, input_height, input_width, n_actions=2):
+    def __init__(self, input_height, input_width, n_actions=2, frame_stack=4):
         super().__init__()
 
         self.n_actions = n_actions
+        self.frame_stack = frame_stack
 
         # CNN feature extractor
         self.conv = nn.Sequential(
-            nn.Conv2d(1 * 4, 32, kernel_size=8, stride=4),
+            nn.Conv2d(1 * frame_stack, 32, kernel_size=8, stride=4),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
             nn.ReLU(),
@@ -20,7 +21,7 @@ class DQN(nn.Module):
         )
 
         # Calculate conv output size
-        self._conv_out_size = self._get_conv_out((1 * 4, input_height, input_width))
+        self._conv_out_size = self._get_conv_out((1 * frame_stack, input_height, input_width))
 
         # Q-value head
         self.fc = nn.Sequential(

@@ -34,10 +34,10 @@ class LocalDQNTrainer:
         """Build DQN model."""
 
         class CNN(nn.Module):
-            def __init__(self, n_actions: int):
+            def __init__(self, n_actions: int, frame_stack: int):
                 super().__init__()
                 self.conv = nn.Sequential(
-                    nn.Conv2d(4, 16, kernel_size=8, stride=4),
+                    nn.Conv2d(frame_stack, 16, kernel_size=8, stride=4),
                     nn.ReLU(),
                     nn.Conv2d(16, 32, kernel_size=4, stride=2),
                     nn.ReLU(),
@@ -53,7 +53,7 @@ class LocalDQNTrainer:
                 x = x.view(x.size(0), -1)
                 return self.fc(x)
 
-        return CNN(self.config.n_actions)
+        return CNN(self.config.n_actions, self.config.frame_stack)
 
     def train_step(
         self,
