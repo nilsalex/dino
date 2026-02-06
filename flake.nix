@@ -30,6 +30,7 @@
               pkgs.cairo
               pkgs.pkg-config
               pkgs.dbus
+              pkgs.poppler-utils
             ];
 
             env = lib.optionalAttrs pkgs.stdenv.isLinux {

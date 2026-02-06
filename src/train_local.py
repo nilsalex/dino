@@ -114,6 +114,9 @@ def main():
     previous_state: torch.Tensor | None = None
     reset_phase = 0
 
+    frame_skip_counter = 0
+    current_action: int | None = None
+
     try:
         while episode_count < config.max_episodes:
             pull_frame_from_appsink(appsink, frame_processor)
@@ -154,6 +157,8 @@ def main():
                                 print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\n")
                                 reset_phase = 1
                                 previous_state = None
+                                current_action = None
+                                frame_skip_counter = 0
                                 continue
                             else:
                                 is_evaluating = False
@@ -163,6 +168,8 @@ def main():
                             reset_phase = 1
                             eval_step_count = 0
                             previous_state = None
+                            current_action = None
+                            frame_skip_counter = 0
                             continue
                     else:
                         if episode_steps >= min_episode_steps:
@@ -186,23 +193,32 @@ def main():
                             curr_reward = 0.0
                             episode_steps = 0
                     reset_phase = 0
+                    current_action = None
+                    frame_skip_counter = 0
                 elif reset_phase > 0:
                     reset_phase = 0
 
             # Local inference for fast action selection
             processing_start = time.perf_counter()
-            if is_evaluating or (buffer.size() > 0 and random.random() >= epsilon):
-                action = local_model.get_action(previous_state)
-            else:
-                action = random.randint(0, config.n_actions - 1)
 
-            # Decay epsilon
-            if step_count < config.epsilon_decay:
-                epsilon = max(
-                    config.epsilon_end,
-                    config.epsilon_start
-                    - (config.epsilon_start - config.epsilon_end) * (step_count / config.epsilon_decay),
-                )
+            frame_skip_counter += 1
+
+            if frame_skip_counter % config.frame_skip == 0 or current_action is None:
+                if is_evaluating or (buffer.size() > 0 and random.random() >= epsilon):
+                    action = local_model.get_action(previous_state)
+                else:
+                    action = random.randint(0, config.n_actions - 1)
+                current_action = action
+
+                # Decay epsilon
+                if step_count < config.epsilon_decay:
+                    epsilon = max(
+                        config.epsilon_end,
+                        config.epsilon_start
+                        - (config.epsilon_start - config.epsilon_end) * (step_count / config.epsilon_decay),
+                    )
+            else:
+                action = current_action
 
             game_interface.execute_action(int(action))
             processing_time = time.perf_counter() - processing_start

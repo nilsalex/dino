@@ -13,6 +13,7 @@ class Config:
     channels: int = 1
     n_actions: int = 2
     frame_stack: int = 4
+    frame_skip: int = 4
     video_device: str = "/dev/video0"
     fps: int = 30
     queue_max_size: int = 2
@@ -28,7 +29,7 @@ class Config:
     epsilon_end: float = 0.05
     epsilon_decay: int = 50000
     target_update_freq: int = 1000
-    replay_buffer_size: int = 10000
+    replay_buffer_size: int = 100000
     min_buffer_size: int = 10000
     checkpoint_path: Path = Path("./checkpoints")
     checkpoint_freq: int = 10000
