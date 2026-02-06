@@ -35,6 +35,7 @@ class Config:
     checkpoint_path: Path = Path("./checkpoints")
     checkpoint_freq: int = 10000
     max_episodes: int = 999999999
+    max_episode_steps: int = 200
     device: torch.device | None = None
 
     def __post_init__(self):
