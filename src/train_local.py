@@ -130,7 +130,7 @@ def main():
 
             is_game_over = state_monitor.is_game_over(frame_processor.frame_buffer)
 
-            if is_game_over:
+            if is_game_over or episode_steps >= 300:
                 if reset_phase == 0:
                     game_interface.reset_game()
                     reset_phase = 1
@@ -228,7 +228,9 @@ def main():
                 step_count += 1
             else:
                 reward = 0.1
-                buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), is_game_over)
+                # Truncate episode after 300 steps and reset
+                episode_done = is_game_over or episode_steps >= 300
+                buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), episode_done)
                 curr_reward += reward
                 episode_steps += 1
 
