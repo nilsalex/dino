@@ -227,8 +227,9 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
-                reward = 0.1
-                # Truncate episode after 300 steps and reset
+                # Reward: survival + success bonus at 300 steps
+                reward = 100.0 if episode_steps == 300 else 0.1
+
                 episode_done = is_game_over or episode_steps >= 300
                 buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), episode_done)
                 curr_reward += reward
