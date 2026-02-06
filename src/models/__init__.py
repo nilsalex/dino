@@ -1,3 +1,3 @@
-from src.models.dqn import DQN
+"""DQN models."""
 
-__all__ = ["DQN"]
+__all__ = []
