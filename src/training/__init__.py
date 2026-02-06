@@ -1,5 +1,5 @@
 """Training utilities and thread classes."""
 
-from src.training.training_thread import TrainingThread
+from src.training.local_training_thread import LocalTrainingThread
 
-__all__ = ["TrainingThread"]
+__all__ = ["LocalTrainingThread"]

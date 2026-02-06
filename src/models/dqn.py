@@ -9,25 +9,22 @@ class DQN(nn.Module):
         self.n_actions = n_actions
         self.frame_stack = frame_stack
 
-        # CNN feature extractor
+        # CNN feature extractor (DQN paper architecture)
         self.conv = nn.Sequential(
-            nn.Conv2d(1 * frame_stack, 32, kernel_size=8, stride=4),
+            nn.Conv2d(1 * frame_stack, 16, kernel_size=8, stride=4),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.BatchNorm2d(64),
+            nn.Conv2d(16, 32, kernel_size=4, stride=2),
             nn.ReLU(),
         )
 
         # Calculate conv output size
         self._conv_out_size = self._get_conv_out((1 * frame_stack, input_height, input_width))
 
-        # Q-value head
+        # Q-value head (DQN paper architecture)
         self.fc = nn.Sequential(
-            nn.Linear(self._conv_out_size, 512),
+            nn.Linear(self._conv_out_size, 256),
             nn.ReLU(),
-            nn.Linear(512, n_actions),
+            nn.Linear(256, n_actions),
         )
 
     def _get_conv_out(self, shape):
