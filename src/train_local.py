@@ -130,8 +130,6 @@ def main():
 
     frame_skip_counter = 0
     current_action: int | None = None
-    waiting_for_game_over: bool = False
-    was_episode_limit_reached: bool = False
 
     try:
         while episode_count < config.max_episodes:
@@ -145,33 +143,6 @@ def main():
                 continue
 
             is_game_over = state_monitor.is_game_over(frame_processor.frame_buffer)
-
-            # Handle episode termination
-            if (
-                episode_steps >= config.max_episode_steps
-                and not waiting_for_game_over
-                and not was_episode_limit_reached
-            ):
-                print(f"[SUCCESS] Episode reached {config.max_episode_steps} steps, waiting for game over...")
-                # Add success bonus reward when we hit the limit
-                curr_reward += 100.0
-                # Record bonus as terminal transition in replay buffer
-                if current_action is not None and previous_state is not None and current_state is not None:
-                    buffer.add(
-                        previous_state.squeeze(0),
-                        current_action,
-                        100.0,
-                        current_state.squeeze(0),
-                        True,
-                    )
-                waiting_for_game_over = True
-                was_episode_limit_reached = True
-
-            # If waiting for natural game over, skip all logic until it happens
-            if waiting_for_game_over:
-                if not is_game_over:
-                    continue
-                waiting_for_game_over = False
 
             # Handle game over and surgical reset
             if is_game_over:
@@ -194,7 +165,6 @@ def main():
                 if reset_cooldown_counter >= reset_cooldown_frames:
                     # Reset complete - game is now stably running
                     is_resetting = False
-                    episode_terminated_by_limit = was_episode_limit_reached
                 else:
                     # Still in cooldown, skip action and recording
                     continue
@@ -233,7 +203,7 @@ def main():
                     if episode_steps >= min_episode_steps:
                         episode_count += 1
                         total_reward += curr_reward
-                        status = "[SUCCESS]" if episode_terminated_by_limit else "[GAME OVER]"
+                        status = "[GAME OVER]"
                         print(
                             f"\r\x1b[K{status} Episode {episode_count} complete. "
                             f"Steps: {step_count}, Reward: {curr_reward:.2f}\n",
@@ -255,8 +225,6 @@ def main():
 
                 current_action = None
                 frame_skip_counter = 0
-                waiting_for_game_over = False
-                was_episode_limit_reached = False
                 continue
 
             # Local inference for fast action selection
