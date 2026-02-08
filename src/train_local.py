@@ -100,7 +100,7 @@ def main():
     curr_reward = 0.0
     episode_steps = 0
 
-    min_episode_steps = 20
+    min_episode_steps = 1
 
     print("Starting local training...")
     print("Make sure the game is open and visible!")
@@ -124,9 +124,9 @@ def main():
     previous_state: torch.Tensor | None = None
     is_resetting: bool = False
     reset_delay_counter: int = 0
-    reset_delay_frames: int = 30
+    reset_delay_frames: int = 1
     reset_cooldown_counter: int = 0
-    reset_cooldown_frames: int = 10
+    reset_cooldown_frames: int = 1
 
     frame_skip_counter = 0
     current_action: int | None = None
@@ -142,7 +142,7 @@ def main():
                 time.sleep(0.001)
                 continue
 
-            is_game_over = state_monitor.is_game_over(frame_processor.frame_buffer)
+            is_game_over = state_monitor.is_game_over(frame_processor.game_over_buffer)
 
             # Handle game over and surgical reset
             if is_game_over:
@@ -171,7 +171,7 @@ def main():
 
                 # Handle episode completion
                 if is_evaluating:
-                    if eval_step_count > 5:
+                    if eval_step_count > 1:
                         print(
                             f"\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\n",
                             end="",

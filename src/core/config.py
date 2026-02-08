@@ -14,7 +14,7 @@ class Config:
     channels: int = 1
     game_name: str = os.getenv("GAME", "dino")
     video_device: str = os.getenv("VIDEO_DEVICE", "/dev/video0")
-    fps: int = 30
+    fps: int = 10
     queue_max_size: int = 2
     queue_leaky: str = "downstream"
     frame_queue_maxsize: int = 2
@@ -24,14 +24,14 @@ class Config:
     learning_rate: float = 1e-4
     batch_size: int = 32
     gamma: float = 0.99
-    epsilon_start: float = 0.2
-    epsilon_end: float = 0.05
-    epsilon_decay: int = 300000
-    target_update_freq: int = 1000
-    replay_buffer_size: int = 100000
-    min_buffer_size: int = 10000
+    epsilon_start: float = 1.0
+    epsilon_end: float = 0.1
+    epsilon_decay: int = 30000
+    target_update_freq: int = 100
+    replay_buffer_size: int = 10000
+    min_buffer_size: int = 1000
     checkpoint_path: Path = Path("./checkpoints")
-    checkpoint_freq: int = 10000
+    checkpoint_freq: int = 1000
     max_episodes: int = 999999999
     device: torch.device | None = None
 
@@ -59,9 +59,10 @@ class GStreamerConfig:
         return (
             f"v4l2src device={self.device} do-timestamp=true ! "
             f"videoscale ! "
-            f"video/x-raw,width={self.width},height={self.height},framerate={self.fps}/1 ! "
+            f"video/x-raw,width={self.width},height={self.height},framerate=30/1 ! "
             f"queue max-size-buffers={self.queue_max_size} leaky={self.queue_leaky} ! "
             f"videoconvert ! "
-            f"video/x-raw,format=GRAY8 ! "
+            f"videorate ! "
+            f"video/x-raw,format=GRAY8,framerate={self.fps}/1 ! "
             f"appsink name=appsink emit-signals=true max-buffers={self.appsink_max_buffers} drop={self.appsink_drop}"
         )

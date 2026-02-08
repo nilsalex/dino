@@ -18,6 +18,7 @@ class FrameProcessor:
         self.config = config
         self.frame_stack = frame_stack
         self.frame_buffer: FrameBuffer = deque(maxlen=frame_stack)
+        self.game_over_buffer: FrameBuffer = deque(maxlen=2)
         self.frame_queue: Queue[Frame] = Queue(maxsize=config.frame_queue_maxsize)
         self.input_frame_count = 0
 
@@ -47,6 +48,7 @@ class FrameProcessor:
     def _add_to_buffer(self, frame: Frame) -> None:
         """Add frame to buffer and optionally save for debug."""
         self.frame_buffer.append(frame)
+        self.game_over_buffer.append(frame)
 
         if self.config.save_frames and self.input_frame_count < self.config.save_max_frames:
             self._save_debug_frame(frame)

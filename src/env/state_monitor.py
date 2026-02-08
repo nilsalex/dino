@@ -13,11 +13,14 @@ class StateMonitor:
         """Check if the game is over by analyzing frame variance.
 
         Args:
-            frame_buffer: Buffer of recent frames.
+            frame_buffer: Buffer of recent frames (should be game_over_buffer).
 
         Returns:
             True if game over detected, False otherwise.
         """
+        if len(frame_buffer) < 2:
+            return False
+
         stacked = np.stack(list(frame_buffer), axis=0)
         pixel_variance = np.var(stacked, axis=0)
-        return np.mean(pixel_variance) < GAME_OVER_VARIANCE_THRESHOLD
+        return np.mean(pixel_variance) * 10000 < GAME_OVER_VARIANCE_THRESHOLD
