@@ -29,9 +29,9 @@ class GameInterface:
             self.ui.syn()
 
     def reset_game(self) -> None:
-        """Reset the game by pressing up."""
-        self.ui.write(e.EV_KEY, e.KEY_UP, 1)
-        self.ui.write(e.EV_KEY, e.KEY_UP, 0)
+        """Reset the game by pressing space."""
+        self.ui.write(e.EV_KEY, e.KEY_SPACE, 1)
+        self.ui.write(e.EV_KEY, e.KEY_SPACE, 0)
         self.ui.syn()
 
     def close(self) -> None:

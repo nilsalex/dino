@@ -153,8 +153,8 @@ def main():
                 elif reset_delay_counter < reset_delay_frames:
                     reset_delay_counter += 1
                 else:
-                    # Wait has passed, send jump action to leave game over state
-                    game_interface.execute_action(1)
+                    # Wait has passed, send space to reset the game
+                    game_interface.reset_game()
                     reset_cooldown_counter = 0
 
                 # Skip normal action and recording during reset
