@@ -12,9 +12,7 @@ class Config:
     output_width: int = 84
     output_height: int = 84
     channels: int = 1
-    n_actions: int = 2
-    frame_stack: int = 4
-    frame_skip: int = 4
+    game_name: str = os.getenv("GAME", "dino")
     video_device: str = os.getenv("VIDEO_DEVICE", "/dev/video0")
     fps: int = 30
     queue_max_size: int = 2

@@ -16,8 +16,10 @@ if TYPE_CHECKING:
 class LocalDQNTrainer:
     """Local DQN trainer for on-device training without Ray."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, n_actions: int, frame_stack: int = 1):
         self.config = config
+        self.n_actions = n_actions
+        self.frame_stack = frame_stack
         self.device = config.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.model = self._build_model().to(self.device)
@@ -53,7 +55,7 @@ class LocalDQNTrainer:
                 x = x.view(x.size(0), -1)
                 return self.fc(x)
 
-        return CNN(self.config.n_actions, self.config.frame_stack)
+        return CNN(self.n_actions, self.frame_stack)
 
     def train_step(
         self,

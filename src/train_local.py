@@ -19,6 +19,7 @@ from src.buffers.thread_safe_buffer import ThreadSafeExperienceBuffer
 from src.capture.frame_processor import FrameProcessor
 from src.capture.gstreamer import GStreamerPipeline
 from src.core.config import Config
+from src.core.game_config import get_game_config
 from src.env.game_interface import GameInterface
 from src.env.state_monitor import StateMonitor
 from src.training.local_training_thread import LocalTrainingThread
@@ -52,21 +53,28 @@ def pull_frame_from_appsink(appsink: Gst.Element, frame_processor: FrameProcesso
 
 def main():
     config = Config()
+    game_config = get_game_config(config.game_name)
+
+    print(f"Game: {config.game_name}")
+    print(f"Actions: {game_config.action_names}")
+    print(f"Frame stack: {game_config.frame_stack}, Frame skip: {game_config.frame_skip}")
 
     print("Creating local trainer...")
-    local_trainer = LocalDQNTrainer(config)
+    local_trainer = LocalDQNTrainer(config, game_config.n_actions)
 
     print("Initializing thread-safe experience buffer...")
     buffer = ThreadSafeExperienceBuffer(config)
 
     print("Initializing local inference model...")
     local_model = LocalInferenceModel(
-        n_actions=config.n_actions, device=config.device or torch.device("cpu"), frame_stack=config.frame_stack
+        n_actions=game_config.n_actions,
+        device=config.device or torch.device("cpu"),
+        frame_stack=game_config.frame_stack,
     )
 
-    game_interface = GameInterface()
+    game_interface = GameInterface(game_config.action_keys)
     state_monitor = StateMonitor()
-    frame_processor = FrameProcessor(config)
+    frame_processor = FrameProcessor(config, game_config.frame_stack)
     metrics_tracker = MetricsTracker()
 
     def on_weights_updated(state_dict: dict[str, torch.Tensor]) -> None:
@@ -95,8 +103,10 @@ def main():
     min_episode_steps = 20
 
     print("Starting local training...")
-    print("Make sure Chrome Dino game is open and visible!")
-    print("[EVAL] Starting initial greedy evaluation episode (baseline)\n")
+    print("Make sure the game is open and visible!")
+    if config.game_name == "dino":
+        print("Make sure Chrome Dino game is open and visible!")
+    print("[EVAL] Starting initial greedy evaluation episode (baseline)\\n")
 
     gst_pipeline = GStreamerPipeline(config)
     gst_pipeline.create_pipeline()
@@ -254,11 +264,11 @@ def main():
 
             frame_skip_counter += 1
 
-            if frame_skip_counter % config.frame_skip == 0 or current_action is None:
+            if frame_skip_counter % game_config.frame_skip == 0 or current_action is None:
                 if is_evaluating or (buffer.size() > 0 and random.random() >= epsilon):
                     action = local_model.get_action(previous_state)
                 else:
-                    action = random.randint(0, config.n_actions - 1)
+                    action = random.randint(0, game_config.n_actions - 1)
                 current_action = action
 
                 # Decay epsilon

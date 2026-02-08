@@ -14,9 +14,10 @@ from src.core.types import Frame, FrameBuffer, State
 class FrameProcessor:
     """Handles frame buffering, preprocessing and state preparation."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, frame_stack: int = 4):
         self.config = config
-        self.frame_buffer: FrameBuffer = deque(maxlen=config.frame_stack)
+        self.frame_stack = frame_stack
+        self.frame_buffer: FrameBuffer = deque(maxlen=frame_stack)
         self.frame_queue: Queue[Frame] = Queue(maxsize=config.frame_queue_maxsize)
         self.input_frame_count = 0
 
@@ -36,7 +37,7 @@ class FrameProcessor:
             frame = self.frame_queue.get_nowait()
             self._add_to_buffer(frame)
 
-            if len(self.frame_buffer) < self.config.frame_stack:
+            if len(self.frame_buffer) < self.frame_stack:
                 return None
 
             return self._preprocess()
@@ -66,7 +67,7 @@ class FrameProcessor:
 
     def buffer_ready(self) -> bool:
         """Check if buffer has enough frames."""
-        return len(self.frame_buffer) >= self.config.frame_stack
+        return len(self.frame_buffer) >= self.frame_stack
 
     @property
     def queue_size(self) -> int:
