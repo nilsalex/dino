@@ -92,7 +92,20 @@ class LocalDQNTrainer:
         loss.backward()
         self.optimizer.step()
 
-        return {"loss": loss.item()}
+        if loss.item() == 0.0:
+            print(
+                f"[DEBUG] Loss=0, Q_mean={current_q_values.mean().item():.4f}, "
+                f"Target_mean={target_q_values.mean().item():.4f}, "
+                f"Rewards=({min(reward_batch):.2f},{max(reward_batch):.2f}), "
+                f"Dones={sum(done_batch)}/{len(done_batch)}"
+            )
+
+        return {
+            "loss": loss.item(),
+            "q_mean": current_q_values.mean().item(),
+            "q_max": current_q_values.max().item(),
+            "target_mean": target_q_values.mean().item(),
+        }
 
     def update_target(self) -> None:
         """Update target network weights."""

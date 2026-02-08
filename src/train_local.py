@@ -311,7 +311,8 @@ def main():
                     f"Eps:{epsilon:.2f} "
                     f"Buf:{buffer.size():5d} "
                     f"Rwd:{curr_reward if not is_evaluating else 0.0:.1f} "
-                    f"Loss:{training_stats['last_loss']:.4f}"
+                    f"Loss:{training_stats['last_loss']:.4f} "
+                    f"Q:{training_stats['q_mean']:.2f}"
                 )
                 print("\x1b[K" + line, end="\r", flush=True)
 

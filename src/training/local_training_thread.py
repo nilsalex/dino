@@ -48,6 +48,9 @@ class LocalTrainingThread:
         self.running: bool = False
         self.thread: threading.Thread | None = None
         self.last_loss: float = 0.0
+        self.last_q_mean: float = 0.0
+        self.last_q_max: float = 0.0
+        self.last_target_mean: float = 0.0
         self.training_count: int = 0
         self.weight_sync_count: int = 0
         self._pending_losses: list[dict[str, float]] = []
@@ -116,6 +119,9 @@ class LocalTrainingThread:
 
         for loss_info in self._pending_losses:
             self.last_loss = loss_info["loss"]
+            self.last_q_mean = loss_info.get("q_mean", 0.0)
+            self.last_q_max = loss_info.get("q_max", 0.0)
+            self.last_target_mean = loss_info.get("target_mean", 0.0)
             self.training_count += 1
 
         self._pending_losses.clear()
@@ -143,6 +149,9 @@ class LocalTrainingThread:
 
         return {
             "last_loss": self.last_loss,
+            "q_mean": self.last_q_mean,
+            "q_max": self.last_q_max,
+            "target_mean": self.last_target_mean,
             "training_count": self.training_count,
             "weight_sync_count": self.weight_sync_count,
         }
