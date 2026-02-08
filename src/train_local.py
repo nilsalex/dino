@@ -151,9 +151,6 @@ def main():
                     reward = 0.1
                     buffer.add(previous_state.squeeze(0), current_action, reward, current_state.squeeze(0), done=True)
                     curr_reward += reward
-                    print(
-                        f"[GAME_OVER] Added terminal transition: action={current_action}, steps={episode_steps}, reward={curr_reward:.2f}"
-                    )
 
                 if not is_resetting:
                     is_resetting = True
