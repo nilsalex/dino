@@ -77,6 +77,8 @@ class LocalTrainingThread:
         """Main training loop - runs continuously in background."""
 
         batch_size = 16
+        step_count = 0
+        collect_count = 0
 
         while self.running:
             buffer_size = self.buffer.size()
@@ -87,8 +89,18 @@ class LocalTrainingThread:
 
             try:
                 if len(self._pending_losses) < batch_size:
+                    step_count += 1
+                    if step_count % 10 == 0:
+                        print(
+                            f"[TRAINING_LOOP] Dispatching step {step_count}, buffer={buffer_size}/{self.config.min_buffer_size}"
+                        )
                     self._dispatch_train_step()
                 else:
+                    collect_count += 1
+                    if collect_count % 10 == 0:
+                        print(
+                            f"[TRAINING_LOOP] Collecting batch {collect_count}, pending_losses={len(self._pending_losses)}"
+                        )
                     self._collect_batch()
             except Exception as e:
                 print(f"Training error: {e}")

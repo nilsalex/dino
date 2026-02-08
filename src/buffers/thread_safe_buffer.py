@@ -85,16 +85,20 @@ class ThreadSafeExperienceBuffer:
             ValueError: If buffer has fewer samples than batch_size.
         """
         with self.lock:
-            if len(self._states) < batch_size:
-                raise ValueError(f"Buffer has {len(self._states)} samples, need {batch_size}")
+            buffer_len = len(self._states)
+            if buffer_len < batch_size:
+                raise ValueError(f"Buffer has {buffer_len} samples, need {batch_size}")
 
-            indices = random.sample(range(len(self._states)), batch_size)
+            indices = random.sample(range(buffer_len), batch_size)
             states = [self._states[i] for i in indices]
             actions = [self._actions[i] for i in indices]
             rewards = [self._rewards[i] for i in indices]
             next_states = [self._next_states[i] for i in indices]
             dones = [self._dones[i] for i in indices]
 
+        print(
+            f"[BUFFER_SAMPLE] Batch {batch_size}, dones={sum(dones)}/{len(dones)}, rewards=({min(rewards):.2f},{max(rewards):.2f})"
+        )
         return states, actions, rewards, next_states, dones
 
     def size(self) -> int:

@@ -78,29 +78,37 @@ class LocalDQNTrainer:
         else:
             next_states_tensor = None
 
+        print(f"[TRAIN_STEP] States shape={states.shape}, non_dones={len(non_dones)}/{len(done_batch)}")
+
         self.optimizer.zero_grad()
 
         current_q_values = self.model(states)
         current_q_values = current_q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+
+        print(
+            f"[TRAIN_STEP] Q_values shape={current_q_values.shape}, range=({current_q_values.min().item():.4f},{current_q_values.max().item():.4f})"
+        )
 
         with torch.no_grad():
             target_q_values = rewards.clone()
 
             if next_states_tensor is not None:
                 next_q_values = self.target_model(next_states_tensor)
-                target_q_values[non_dones] += self.config.gamma * next_q_values.max(1)[0]
+                max_next_q = next_q_values.max(1)[0]
+                print(
+                    f"[TRAIN_STEP] Next Q shape={next_q_values.shape}, max_next_q range=({max_next_q.min().item():.4f},{max_next_q.max().item():.4f})"
+                )
+                target_q_values[non_dones] += self.config.gamma * max_next_q
+
+        print(
+            f"[TRAIN_STEP] Target Q range=({target_q_values.min().item():.4f},{target_q_values.max().item():.4f}), rewards range=({rewards.min().item():.4f},{rewards.max().item():.4f})"
+        )
 
         loss = self.criterion(current_q_values, target_q_values)
+        print(f"[TRAIN_STEP] Loss={loss.item():.6f}")
+
         loss.backward()
         self.optimizer.step()
-
-        if loss.item() == 0.0:
-            print(
-                f"[DEBUG] Loss=0, Q_mean={current_q_values.mean().item():.4f}, "
-                f"Target_mean={target_q_values.mean().item():.4f}, "
-                f"Rewards=({min(reward_batch):.2f},{max(reward_batch):.2f}), "
-                f"Dones={sum(done_batch)}/{len(done_batch)}"
-            )
 
         return {
             "loss": loss.item(),
