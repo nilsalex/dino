@@ -96,9 +96,6 @@ class ThreadSafeExperienceBuffer:
             next_states = [self._next_states[i] for i in indices]
             dones = [self._dones[i] for i in indices]
 
-        print(
-            f"[BUFFER_SAMPLE] Batch {batch_size}, dones={sum(dones)}/{len(dones)}, rewards=({min(rewards):.2f},{max(rewards):.2f})"
-        )
         return states, actions, rewards, next_states, dones
 
     def size(self) -> int:
