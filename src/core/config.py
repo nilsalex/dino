@@ -24,9 +24,9 @@ class Config:
     learning_rate: float = 1e-4
     batch_size: int = 32
     gamma: float = 0.99
-    epsilon_start: float = 0.5
-    epsilon_end: float = 0.01
-    epsilon_decay: int = 100000
+    epsilon_start: float = 0.4
+    epsilon_end: float = 0.001
+    epsilon_decay: int = 10000
     target_update_freq: int = 100
     replay_buffer_size: int = 10000
     min_buffer_size: int = 1000

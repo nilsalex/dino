@@ -145,23 +145,23 @@ def main():
             is_game_over = state_monitor.is_game_over(frame_processor.game_over_buffer)
 
             # Handle game over and surgical reset
-            if is_game_over:
+            if is_game_over and not is_resetting:
                 # Add terminal transition if we have a previous state and action
                 if not is_evaluating and previous_state is not None and current_action is not None:
-                    reward = 0.1
+                    reward = -10.0
                     buffer.add(previous_state.squeeze(0), current_action, reward, current_state.squeeze(0), done=True)
                     curr_reward += reward
 
-                if not is_resetting:
-                    is_resetting = True
-                    reset_delay_counter = 0
-                    reset_cooldown_counter = 0
-                elif reset_delay_counter < reset_delay_frames:
-                    reset_delay_counter += 1
-                else:
-                    # Wait has passed, send space to reset the game
-                    game_interface.reset_game()
-                    reset_cooldown_counter = 0
+                is_resetting = True
+                reset_delay_counter = 0
+                reset_cooldown_counter = 0
+            elif is_game_over and reset_delay_counter < reset_delay_frames:
+                reset_delay_counter += 1
+                continue
+            elif is_game_over:
+                # Wait has passed, send space to reset the game
+                game_interface.reset_game()
+                reset_cooldown_counter = 0
 
                 # Skip normal action and recording during reset
                 continue
@@ -307,10 +307,10 @@ def main():
         print("\nStopping...")
 
     finally:
-        print(f"\nReplay buffer: {buffer.size()} / {buffer.max_size} transitions")
+        print(f"\\nReplay buffer: {buffer.size()} / {buffer.max_size} transitions")
         if buffer.size() > 0:
-            # Print last 10 transitions to verify rewards are recorded
-            sample_size = min(10, buffer.size())
+            # Print last 50 transitions to verify rewards are recorded
+            sample_size = min(50, buffer.size())
             with buffer.lock:
                 print(f"Last {sample_size} transitions in buffer:")
                 for i in range(-sample_size, 0):
