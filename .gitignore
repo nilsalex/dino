@@ -204,3 +204,4 @@ dino_tensorboard/
 *.zip
 
 debug_frames/
+*.png
