@@ -12,6 +12,7 @@ class GameConfig:
     frame_skip: int
     action_keys: list[int]
     action_names: list[str]
+    action_keys_str: list[str] | None = None
 
 
 GAME_CONFIGS: dict[str, GameConfig] = {
@@ -21,6 +22,7 @@ GAME_CONFIGS: dict[str, GameConfig] = {
         frame_skip=4,
         action_keys=[0, 103],
         action_names=["NO_ACTION", "JUMP_UP"],
+        action_keys_str=["", " "],
     ),
     "reaction": GameConfig(
         n_actions=3,
@@ -28,6 +30,7 @@ GAME_CONFIGS: dict[str, GameConfig] = {
         frame_skip=1,
         action_keys=[0, 30, 48],
         action_names=["DO_NOTHING", "PRESS_A", "PRESS_B"],
+        action_keys_str=["", "a", "b"],
     ),
 }
 

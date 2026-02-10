@@ -21,6 +21,7 @@ from src.capture.gstreamer import GStreamerPipeline
 from src.core.config import Config
 from src.core.game_config import get_game_config
 from src.env.game_interface import GameInterface
+from src.env.playwright_interface import PlaywrightGameInterface
 from src.env.state_monitor import StateMonitor
 from src.training.local_training_thread import LocalTrainingThread
 from src.utils.metrics import MetricsTracker
@@ -59,6 +60,10 @@ def main():
     print(f"Game: {config.game_name}")
     print(f"Actions: {game_config.action_names}")
     print(f"Frame stack: {game_config.frame_stack}, Frame skip: {game_config.frame_skip}")
+    print(f"Input method: {'Playwright' if config.use_playwright else 'evdev'}")
+    if config.use_playwright:
+        print(f"Browser URL: {config.browser_url}")
+        print(f"Browser type: {config.browser_type}")
 
     print("Creating local trainer...")
     local_trainer = LocalDQNTrainer(config, game_config.n_actions)
@@ -73,7 +78,17 @@ def main():
         frame_stack=game_config.frame_stack,
     )
 
-    game_interface = GameInterface(game_config.action_keys)
+    if config.use_playwright:
+        if not config.browser_url:
+            raise ValueError("browser_url must be set when use_playwright is True")
+        if game_config.action_keys_str is None:
+            raise ValueError(f"Game {config.game_name} does not have action_keys_str configured for Playwright")
+        print(f"Using Playwright browser ({config.browser_type}) at {config.browser_url}")
+        game_interface = PlaywrightGameInterface(config.browser_url, game_config.action_keys_str, config.browser_type)
+        game_interface.start()
+    else:
+        game_interface = GameInterface(game_config.action_keys)
+
     state_monitor = StateMonitor()
     frame_processor = FrameProcessor(config, game_config.frame_stack)
     metrics_tracker = MetricsTracker()
@@ -354,7 +369,10 @@ def main():
         print("Stopping training thread...")
         training_thread.stop()
         gst_pipeline.stop()
-        game_interface.close()
+        if config.use_playwright:
+            game_interface.close()
+        else:
+            game_interface.close()
 
 
 if __name__ == "__main__":

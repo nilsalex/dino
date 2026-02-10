@@ -14,6 +14,9 @@ class Config:
     channels: int = 1
     game_name: str = os.getenv("GAME", "dino")
     video_device: str = os.getenv("VIDEO_DEVICE", "/dev/video0")
+    use_playwright: bool = os.getenv("USE_PLAYWRIGHT", "").lower() == "true"
+    browser_url: str = os.getenv("BROWSER_URL", "")
+    browser_type: str = os.getenv("BROWSER_TYPE", "firefox")
     fps: int = 10
     queue_max_size: int = 2
     queue_leaky: str = "downstream"
@@ -24,7 +27,7 @@ class Config:
     learning_rate: float = 1e-4
     batch_size: int = 32
     gamma: float = 0.99
-    epsilon_start: float = 0.4
+    epsilon_start: float = 0.8
     epsilon_end: float = 0.001
     epsilon_decay: int = 10000
     target_update_freq: int = 100
