@@ -201,6 +201,8 @@ logs/
 # Project-specific
 captured_frames/
 dino_tensorboard/
+checkpoints/
+runs/
 *.zip
 
 debug_frames/

@@ -24,6 +24,7 @@ from src.env.game_interface import GameInterface
 from src.env.state_monitor import StateMonitor
 from src.training.local_training_thread import LocalTrainingThread
 from src.utils.metrics import MetricsTracker
+from src.utils.tensorboard_logger import TensorBoardLogger
 
 
 def pull_frame_from_appsink(appsink: Gst.Element, frame_processor: FrameProcessor) -> bool:
@@ -131,6 +132,9 @@ def main():
     frame_skip_counter = 0
     current_action: int | None = None
 
+    tb_logger = TensorBoardLogger(log_dir="runs")
+    print(f"TensorBoard logging initialized at {tb_logger.log_dir}")
+
     try:
         while episode_count < config.max_episodes:
             pull_frame_from_appsink(appsink, frame_processor)
@@ -211,12 +215,15 @@ def main():
                         episode_count += 1
                         total_reward += curr_reward
                         status = "[GAME OVER]"
+                        episode_reward = curr_reward
+                        episode_length = episode_steps
                         print(
                             f"\r\x1b[K{status} Episode {episode_count} complete. "
-                            f"Steps: {step_count}, Reward: {curr_reward:.2f}\n",
+                            f"Steps: {step_count}, Reward: {episode_reward:.2f}\n",
                             end="",
                             flush=True,
                         )
+                        tb_logger.log_episode(episode_count, episode_reward, episode_length)
                         curr_reward = 0.0
                         episode_steps = 0
 
@@ -275,6 +282,13 @@ def main():
                 if step_count > 0 and step_count % 1000 == 0:
                     local_trainer.update_target()
 
+                # Save checkpoint
+                if step_count % config.checkpoint_freq == 0:
+                    checkpoint_path = config.checkpoint_path / f"checkpoint_{step_count}.pt"
+                    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                    local_trainer.save_checkpoint(str(checkpoint_path), step_count)
+                    print(f"\n[CHECKPOINT] Saved checkpoint to {checkpoint_path}")
+
                 step_count += 1
 
             metrics = metrics_tracker.update(
@@ -282,6 +296,24 @@ def main():
             )
 
             training_stats = training_thread.get_stats()
+            loss = training_stats["last_loss"]
+
+            if not is_evaluating and training_stats["training_count"] > 0 and step_count % 10 == 0:
+                tb_logger.log_training_metrics(
+                    step_count,
+                    loss=loss,
+                    q_mean=training_stats["q_mean"],
+                    q_max=None,
+                )
+
+            if not is_evaluating and step_count % 100 == 0:
+                tb_logger.log_system_metrics(
+                    step_count,
+                    epsilon=epsilon,
+                    fps=metrics.fps,
+                    buffer_size=buffer.size(),
+                )
+
             eval_tag = "[EVAL] " if is_evaluating else ""
             line = (
                 f"{eval_tag}"
@@ -307,6 +339,7 @@ def main():
         print("\nStopping...")
 
     finally:
+        tb_logger.close()
         print(f"\\nReplay buffer: {buffer.size()} / {buffer.max_size} transitions")
         if buffer.size() > 0:
             # Print last 50 transitions to verify rewards are recorded

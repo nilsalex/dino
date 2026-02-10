@@ -126,3 +126,23 @@ class LocalDQNTrainer:
         """Load model state dict."""
 
         self.model.load_state_dict(state_dict)
+
+    def save_checkpoint(self, path: str, step_count: int) -> None:
+        """Save model checkpoint with optimizer state."""
+
+        checkpoint = {
+            "step_count": step_count,
+            "model_state_dict": self.model.state_dict(),
+            "target_model_state_dict": self.target_model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+        }
+        torch.save(checkpoint, path)
+
+    def load_checkpoint(self, path: str) -> int:
+        """Load model checkpoint and return step count."""
+
+        checkpoint = torch.load(path, map_location=self.device)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.target_model.load_state_dict(checkpoint["target_model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        return checkpoint["step_count"]
