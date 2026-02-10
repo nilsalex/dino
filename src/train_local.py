@@ -126,7 +126,7 @@ def main():
     reset_delay_counter: int = 0
     reset_delay_frames: int = 1
     reset_cooldown_counter: int = 0
-    reset_cooldown_frames: int = 1
+    reset_cooldown_frames: int = 5
 
     frame_skip_counter = 0
     current_action: int | None = None
@@ -155,6 +155,7 @@ def main():
                 is_resetting = True
                 reset_delay_counter = 0
                 reset_cooldown_counter = 0
+                continue
             elif is_game_over and reset_delay_counter < reset_delay_frames:
                 reset_delay_counter += 1
                 continue
@@ -280,25 +281,24 @@ def main():
                 processing_time, frame_processor.queue_size, frame_processor.max_queue_size
             )
 
-            if step_count % 10 == 0:
-                training_stats = training_thread.get_stats()
-                eval_tag = "[EVAL] " if is_evaluating else ""
-                line = (
-                    f"{eval_tag}"
-                    f"FPS:{metrics.fps:4.0f} "
-                    f"Inf:{metrics.process_time * 1000:4.1f}ms "
-                    f"Tr:{training_stats['training_count']:5d} "
-                    f"Sync:{training_stats['weight_sync_count']:4d} "
-                    f"Q:{metrics.queue_size:2d}/{metrics.queue_max_size} "
-                    f"Epi:{episode_count:3d} "
-                    f"Step:{step_count:5d} "
-                    f"Eps:{epsilon:.2f} "
-                    f"Buf:{buffer.size():5d} "
-                    f"Rwd:{curr_reward if not is_evaluating else 0.0:.1f} "
-                    f"Loss:{training_stats['last_loss']:.4f} "
-                    f"Q:{training_stats['q_mean']:.2f}"
-                )
-                print("\x1b[K" + line, end="\r", flush=True)
+            training_stats = training_thread.get_stats()
+            eval_tag = "[EVAL] " if is_evaluating else ""
+            line = (
+                f"{eval_tag}"
+                f"FPS:{metrics.fps:4.0f} "
+                f"Inf:{metrics.process_time * 1000:4.1f}ms "
+                f"Tr:{training_stats['training_count']:5d} "
+                f"Sync:{training_stats['weight_sync_count']:4d} "
+                f"Q:{metrics.queue_size:2d}/{metrics.queue_max_size} "
+                f"Epi:{episode_count:3d} "
+                f"Step:{step_count:5d} "
+                f"Eps:{epsilon:.2f} "
+                f"Buf:{buffer.size():5d} "
+                f"Rwd:{curr_reward if not is_evaluating else 0.0:.1f} "
+                f"Loss:{training_stats['last_loss']:.4f} "
+                f"Q:{training_stats['q_mean']:.2f}"
+            )
+            print("\x1b[K" + line, end="\r", flush=True)
 
             previous_state = current_state
             time.sleep(0.001)
