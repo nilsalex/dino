@@ -15,3 +15,9 @@ format:
 
 run:
 	uv run python -m src.main
+
+run-playwright:
+	USE_PLAYWRIGHT=true BROWSER_URL=http://localhost:5173 BROWSER_TYPE=firefox GAME=reaction uv run python -m src.train_local
+
+run-local:
+	uv run python -m src.train_local
