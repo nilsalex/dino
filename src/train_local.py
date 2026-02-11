@@ -142,7 +142,7 @@ def main():
     reset_delay_counter: int = 0
     reset_delay_frames: int = 1
     reset_cooldown_counter: int = 0
-    reset_cooldown_frames: int = 5
+    reset_cooldown_frames: int = 1
 
     frame_skip_counter = 0
     current_action: int | None = None
@@ -165,9 +165,9 @@ def main():
 
             # Handle game over and surgical reset
             if is_game_over and not is_resetting:
-                # Add terminal transition if we have a previous state and action
+                # Add terminal transition with penalty for game over
                 if not is_evaluating and previous_state is not None and current_action is not None:
-                    reward = -10.0
+                    reward = -1.0
                     buffer.add(previous_state.squeeze(0), current_action, reward, current_state.squeeze(0), done=True)
                     curr_reward += reward
 
@@ -285,8 +285,8 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
-                # Reward: survival (0.1 per step)
-                reward = 0.1
+                # Reward: survival steps are neutral (0), only game over gives penalty (-1)
+                reward = 0.0
 
                 # Record transition (terminal only on natural game over)
                 buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), is_game_over)
