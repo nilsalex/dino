@@ -28,6 +28,7 @@
 
           # Playwright dependencies (Firefox browser libraries)
           playwrightPkgs = with pkgs; [
+            dbus
             glib-networking
             libnghttp2
             libpsl
@@ -89,6 +90,7 @@
         {
           default = pkgs.mkShell {
             packages = [
+              pkgs.xvfb-run
               pkgs.opencode
               pkgs.python312
               pkgs.uv
