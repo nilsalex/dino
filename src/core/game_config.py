@@ -13,6 +13,8 @@ class GameConfig:
     action_keys: list[int]
     action_names: list[str]
     action_keys_str: list[str] | None = None
+    reset_key: int = 32
+    reset_key_str: str = " "
 
 
 GAME_CONFIGS: dict[str, GameConfig] = {

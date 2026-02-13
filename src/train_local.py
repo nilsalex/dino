@@ -21,8 +21,8 @@ from src.capture.gstreamer import GStreamerPipeline
 from src.core.config import Config
 from src.core.game_config import get_game_config
 from src.env.game_interface import GameInterface
-from src.env.playwright_interface import PlaywrightGameInterface
 from src.env.state_monitor import StateMonitor
+from src.env.xlib_interface import XlibGameInterface
 from src.training.local_training_thread import LocalTrainingThread
 from src.utils.metrics import MetricsTracker
 from src.utils.tensorboard_logger import TensorBoardLogger
@@ -60,18 +60,15 @@ def main():
     print(f"Game: {config.game_name}")
     print(f"Actions: {game_config.action_names}")
     print(f"Frame stack: {game_config.frame_stack}, Frame skip: {game_config.frame_skip}")
-    print(f"Input method: {'Playwright' if config.use_playwright else 'evdev'}")
-    if config.use_playwright:
-        print(f"Browser URL: {config.browser_url}")
-        print(f"Browser type: {config.browser_type}")
-        if config.headless:
-            print(f"Headless mode: CDP port {config.cdp_port}")
-            print(f"Browser window: {config.browser_width}x{config.browser_height}")
-            print(f"Crop region: ({config.crop_x},{config.crop_y}) {config.crop_width}x{config.crop_height}")
-            if config.udp_port > 0:
-                print(f"UDP full view: port {config.udp_port}")
-            if config.udp_port_agent > 0:
-                print(f"UDP agent view: port {config.udp_port_agent}")
+    print(f"Input method: {'Xlib' if config.headless else 'evdev'}")
+    if config.headless:
+        print(f"Headless mode: display {config.display_name}")
+        print(f"Browser window: {config.browser_width}x{config.browser_height}")
+        print(f"Crop region: ({config.crop_x},{config.crop_y}) {config.crop_width}x{config.crop_height}")
+        if config.udp_port > 0:
+            print(f"UDP full view: port {config.udp_port}")
+        if config.udp_port_agent > 0:
+            print(f"UDP agent view: port {config.udp_port_agent}")
 
     print("Creating local trainer...")
     local_trainer = LocalDQNTrainer(config, game_config.n_actions)
@@ -86,26 +83,16 @@ def main():
         frame_stack=game_config.frame_stack,
     )
 
-    if config.use_playwright:
+    if config.headless:
         if game_config.action_keys_str is None:
-            raise ValueError(f"Game {config.game_name} does not have action_keys_str configured for Playwright")
-
-        cdp_port = config.cdp_port if config.headless else None
-
-        if cdp_port is not None:
-            print(f"Connecting to Chromium via CDP (port {cdp_port})...")
-        else:
-            if not config.browser_url:
-                raise ValueError("browser_url must be set when use_playwright is True")
-            print(f"Using Playwright browser ({config.browser_type}) at {config.browser_url}")
-
-        game_interface = PlaywrightGameInterface(
-            url=config.browser_url,
-            action_keys=game_config.action_keys_str,
-            browser_type=config.browser_type,
-            cdp_port=cdp_port,
+            raise ValueError(f"Game {config.game_name} does not have action_keys_str configured")
+        action_keys_xlib = [ord(k) if k else 0 for k in game_config.action_keys_str]
+        print(f"Using Xlib input on display {config.display_name}")
+        game_interface = XlibGameInterface(
+            action_keys=action_keys_xlib,
+            reset_key=game_config.reset_key,
+            display_name=config.display_name,
         )
-        game_interface.start()
     else:
         game_interface = GameInterface(game_config.action_keys)
 
@@ -389,10 +376,7 @@ def main():
         print("Stopping training thread...")
         training_thread.stop()
         gst_pipeline.stop()
-        if config.use_playwright:
-            game_interface.close()
-        else:
-            game_interface.close()
+        game_interface.close()
 
 
 if __name__ == "__main__":

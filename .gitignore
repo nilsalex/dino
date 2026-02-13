@@ -203,7 +203,6 @@ captured_frames/
 dino_tensorboard/
 checkpoints/
 runs/
-.playwright/
 *.zip
 
 debug_frames/

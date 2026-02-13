@@ -14,9 +14,6 @@ class Config:
     channels: int = 1
     game_name: str = os.getenv("GAME", "dino")
     video_device: str = os.getenv("VIDEO_DEVICE", "/dev/video0")
-    use_playwright: bool = os.getenv("USE_PLAYWRIGHT", "").lower() == "true"
-    browser_url: str = os.getenv("BROWSER_URL", "")
-    browser_type: str = os.getenv("BROWSER_TYPE", "firefox")
     fps: int = 10
     queue_max_size: int = 2
     queue_leaky: str = "downstream"
@@ -40,7 +37,6 @@ class Config:
 
     # Headless mode (ximagesrc capture)
     headless: bool = os.getenv("HEADLESS", "").lower() == "true"
-    cdp_port: int = int(os.getenv("CDP_PORT", "9222"))
 
     # Browser dimensions (for ximagesrc capture)
     browser_width: int = int(os.getenv("BROWSER_WIDTH", "1280"))
@@ -55,6 +51,9 @@ class Config:
     # Observability UDP stream
     udp_port: int = int(os.getenv("UDP_PORT", "5000"))
     udp_port_agent: int = int(os.getenv("UDP_PORT_AGENT", "0"))
+
+    # X11 display for headless mode
+    display_name: str = os.getenv("DISPLAY_NAME", ":99")
 
     def __post_init__(self):
         if self.device is None:

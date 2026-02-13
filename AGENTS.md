@@ -22,8 +22,8 @@ make lock
 # Run main application
 make run
 
-# Run with Playwright browser
-make run-playwright
+# Run headless training (Xvfb + Xlib)
+make run-headless
 
 # Run local training
 make run-local
@@ -131,7 +131,7 @@ make run-local
 - Use `os.getenv("KEY", "default")` for environment variables
 - Define in `Config` dataclass with type conversion:
   ```python
-  use_playwright: bool = os.getenv("USE_PLAYWRIGHT", "").lower() == "true"
+  headless: bool = os.getenv("HEADLESS", "").lower() == "true"
   ```
 
 ### GStreamer/GObject Integration
