@@ -64,6 +64,14 @@ def main():
     if config.use_playwright:
         print(f"Browser URL: {config.browser_url}")
         print(f"Browser type: {config.browser_type}")
+        if config.headless:
+            print(f"Headless mode: CDP port {config.cdp_port}")
+            print(f"Browser window: {config.browser_width}x{config.browser_height}")
+            print(f"Crop region: ({config.crop_x},{config.crop_y}) {config.crop_width}x{config.crop_height}")
+            if config.udp_port > 0:
+                print(f"UDP full view: port {config.udp_port}")
+            if config.udp_port_agent > 0:
+                print(f"UDP agent view: port {config.udp_port_agent}")
 
     print("Creating local trainer...")
     local_trainer = LocalDQNTrainer(config, game_config.n_actions)
@@ -79,12 +87,24 @@ def main():
     )
 
     if config.use_playwright:
-        if not config.browser_url:
-            raise ValueError("browser_url must be set when use_playwright is True")
         if game_config.action_keys_str is None:
             raise ValueError(f"Game {config.game_name} does not have action_keys_str configured for Playwright")
-        print(f"Using Playwright browser ({config.browser_type}) at {config.browser_url}")
-        game_interface = PlaywrightGameInterface(config.browser_url, game_config.action_keys_str, config.browser_type)
+
+        cdp_port = config.cdp_port if config.headless else None
+
+        if cdp_port is not None:
+            print(f"Connecting to Chromium via CDP (port {cdp_port})...")
+        else:
+            if not config.browser_url:
+                raise ValueError("browser_url must be set when use_playwright is True")
+            print(f"Using Playwright browser ({config.browser_type}) at {config.browser_url}")
+
+        game_interface = PlaywrightGameInterface(
+            url=config.browser_url,
+            action_keys=game_config.action_keys_str,
+            browser_type=config.browser_type,
+            cdp_port=cdp_port,
+        )
         game_interface.start()
     else:
         game_interface = GameInterface(game_config.action_keys)

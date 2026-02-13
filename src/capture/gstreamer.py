@@ -1,10 +1,15 @@
 """GStreamer pipeline management for frame capture."""
 
+from __future__ import annotations
+
 import sys
+import threading
+from typing import Literal
 
 from gi.repository import GLib, Gst
 
-from src.core.config import Config, GStreamerConfig
+from src.core.config import Config
+from src.core.gstreamer_config import GStreamerConfig
 
 
 class GStreamerPipeline:
@@ -14,6 +19,7 @@ class GStreamerPipeline:
         self.config = config
         self.pipeline: Gst.Pipeline | None = None
         self.loop: GLib.MainLoop = GLib.MainLoop()
+        self._loop_thread: threading.Thread | None = None
 
     def create_pipeline(  # type: ignore[return-value]
         self,
@@ -21,13 +27,24 @@ class GStreamerPipeline:
         """Create and configure the GStreamer pipeline."""
         Gst.init(sys.argv)
 
+        source_type: Literal["v4l2", "ximage"] = "ximage" if self.config.headless else "v4l2"
+
         gst_config = GStreamerConfig(
-            device=self.config.video_device,
+            source_type=source_type,
             width=self.config.output_width,
             height=self.config.output_height,
             fps=self.config.fps,
             queue_max_size=self.config.queue_max_size,
             queue_leaky=self.config.queue_leaky,
+            device=self.config.video_device,
+            browser_width=self.config.browser_width,
+            browser_height=self.config.browser_height,
+            crop_x=self.config.crop_x,
+            crop_y=self.config.crop_y,
+            crop_width=self.config.crop_width,
+            crop_height=self.config.crop_height,
+            udp_port=self.config.udp_port,
+            udp_port_agent=self.config.udp_port_agent,
         )
 
         pipeline_str = gst_config.get_pipeline_string()
@@ -80,12 +97,18 @@ class GStreamerPipeline:
 
         self.pipeline.set_state(Gst.State.PLAYING)
 
+        self._loop_thread = threading.Thread(target=self.loop.run, daemon=True)
+        self._loop_thread.start()
+
     def stop(self) -> None:
         """Stop the pipeline and main loop."""
         if self.pipeline is None:
             return
 
         self.pipeline.set_state(Gst.State.NULL)
+        self.loop.quit()
+        if self._loop_thread:
+            self._loop_thread.join(timeout=1.0)
         print("Pipeline stopped")
 
     def run(self) -> None:

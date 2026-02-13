@@ -15,15 +15,23 @@ if TYPE_CHECKING:
 class PlaywrightGameInterface:
     """Interface for executing actions in the game using Playwright."""
 
-    def __init__(self, url: str, action_keys: list[str], browser_type: str = "firefox"):
+    def __init__(
+        self,
+        url: str,
+        action_keys: list[str],
+        browser_type: str = "firefox",
+        cdp_port: int | None = None,
+    ):
         self.url = url
         self.action_keys = action_keys
         self.browser_type = browser_type
+        self.cdp_port = cdp_port
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._page: Page | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._executor = ThreadPoolExecutor(max_workers=1)
+        self._connected_via_cdp = False
 
     def _run_async(self, coro):
         """Run async coroutine in the event loop."""
@@ -37,20 +45,35 @@ class PlaywrightGameInterface:
         playwright = await async_playwright().start()
         self._playwright = playwright
 
-        if self.browser_type == "firefox":
-            self._browser = await playwright.firefox.launch(headless=False)
-        elif self.browser_type == "chromium":
-            self._browser = await playwright.chromium.launch(headless=False)
+        if self.cdp_port is not None:
+            self._browser = await playwright.chromium.connect_over_cdp(f"http://localhost:{self.cdp_port}")
+            self._connected_via_cdp = True
+
+            contexts = self._browser.contexts
+            if not contexts:
+                raise RuntimeError("No browser contexts found")
+
+            pages = contexts[0].pages
+            if not pages:
+                raise RuntimeError("No pages found in browser context")
+
+            self._page = pages[0]
+            print(f"Connected to existing browser via CDP (port {self.cdp_port})")
         else:
-            raise ValueError(f"Unknown browser type: {self.browser_type}")
+            if self.browser_type == "firefox":
+                self._browser = await playwright.firefox.launch(headless=False)
+            elif self.browser_type == "chromium":
+                self._browser = await playwright.chromium.launch(headless=False)
+            else:
+                raise ValueError(f"Unknown browser type: {self.browser_type}")
 
-        if self._browser is None:
-            raise RuntimeError("Browser failed to initialize")
+            if self._browser is None:
+                raise RuntimeError("Browser failed to initialize")
 
-        self._page = await self._browser.new_page()
-        if self._page is None:
-            raise RuntimeError("Failed to create page")
-        await self._page.goto(self.url)  # type: ignore[union-attr]
+            self._page = await self._browser.new_page()
+            if self._page is None:
+                raise RuntimeError("Failed to create page")
+            await self._page.goto(self.url)  # type: ignore[union-attr]
 
     async def _execute_action_async(self, action: int) -> None:
         """Execute an action in the game.
@@ -75,10 +98,14 @@ class PlaywrightGameInterface:
 
     async def _close_async(self) -> None:
         """Close the game interface."""
-        if self._browser:
-            await self._browser.close()
-        if self._playwright:
-            await self._playwright.stop()
+        if self._connected_via_cdp:
+            if self._playwright:
+                await self._playwright.stop()
+        else:
+            if self._browser:
+                await self._browser.close()
+            if self._playwright:
+                await self._playwright.stop()
 
     def start(self) -> None:
         """Start the browser and navigate to the game URL."""
