@@ -4,7 +4,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-import torch
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import torch  # noqa: E402
 
 
 @dataclass

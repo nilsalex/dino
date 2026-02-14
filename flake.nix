@@ -21,6 +21,7 @@
           default = pkgs.mkShell {
             packages = [
               pkgs.xvfb
+              pkgs.chromium
               pkgs.opencode
               pkgs.python312
               pkgs.uv

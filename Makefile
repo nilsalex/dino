@@ -1,3 +1,6 @@
+-include .env
+export
+
 install:
 	uv sync
 
@@ -16,14 +19,28 @@ format:
 run:
 	uv run python -m src.main
 
+run-xvfb:
+	Xvfb $(DISPLAY_NAME) -screen 0 $(BROWSER_WIDTH)x$(BROWSER_HEIGHT)x24
+
+view-xvfb:
+	DISPLAY=$(DISPLAY_NAME) gst-launch-1.0 ximagesrc ! videoconvert ! autovideosink
+
+run-chromium:
+	DISPLAY=$(DISPLAY_NAME) WAYLAND_DISPLAY= chromium \
+		--ozone-platform=x11 \
+		--user-data-dir=/tmp/chrome-headless \
+		--no-first-run \
+		--window-size=$(BROWSER_WIDTH),$(BROWSER_HEIGHT) \
+		--app=$(BROWSER_URL)
+
 run-headless:
-	HEADLESS=true UDP_PORT=5000 UDP_PORT_AGENT=5001 GAME=reaction CROP_X=500 CROP_Y=170 CROP_WIDTH=340 CROP_HEIGHT=400 uv run python -m src.train_local
+	HEADLESS=true uv run python -m src.train_local
 
 view-headless:
-	gst-launch-1.0 udpsrc port=5000 ! jpegdec ! videoconvert ! autovideosink
+	gst-launch-1.0 udpsrc port=$(UDP_PORT) ! jpegdec ! videoconvert ! autovideosink
 
 view-agent:
-	gst-launch-1.0 udpsrc port=5001 ! jpegdec ! videoconvert ! autovideosink
+	gst-launch-1.0 udpsrc port=$(UDP_PORT_AGENT) ! jpegdec ! videoconvert ! autovideosink
 
 run-local:
 	uv run python -m src.train_local

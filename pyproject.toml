@@ -21,6 +21,7 @@ dependencies = [
     "ray[rllib,client]>=2.0.0",
     "tensorboard>=2.14.0",
     "python-xlib>=0.33",
+    "python-dotenv>=1.0.0",
 ]
 
 [tool.ruff]
