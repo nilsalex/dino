@@ -149,7 +149,7 @@ def main():
     reset_delay_counter: int = 0
     reset_delay_frames: int = 1
     reset_cooldown_counter: int = 0
-    reset_cooldown_frames: int = 1
+    reset_cooldown_frames: int = 5
 
     frame_skip_counter = 0
     current_action: int | None = None
