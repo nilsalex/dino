@@ -34,7 +34,7 @@ run-chromium:
 		--app=$(BROWSER_URL)
 
 run-headless:
-	HEADLESS=true uv run python -m src.train_local
+	DISPLAY=$(DISPLAY_NAME) HEADLESS=true uv run python -m src.train_local
 
 view-headless:
 	gst-launch-1.0 udpsrc port=$(UDP_PORT) ! jpegdec ! videoconvert ! autovideosink
