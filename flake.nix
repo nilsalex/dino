@@ -20,7 +20,7 @@
         {
           default = pkgs.mkShell {
             packages = [
-              pkgs.xvfb-run
+              pkgs.xvfb
               pkgs.opencode
               pkgs.python312
               pkgs.uv

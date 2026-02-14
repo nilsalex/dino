@@ -14,6 +14,10 @@ class XlibGameInterface:
         self.action_keys = action_keys
         self.reset_key = reset_key
         self.display = Display(display_name)
+        self.root = self.display.screen().root
+
+        self.root.warp_pointer(9999, 9999)
+        self.display.flush()
 
     def execute_action(self, action: int) -> None:
         """Execute an action by sending keypress via XTest.
