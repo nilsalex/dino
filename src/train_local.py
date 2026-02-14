@@ -100,6 +100,8 @@ def main():
     frame_processor = FrameProcessor(config, game_config.frame_stack)
     metrics_tracker = MetricsTracker()
 
+    action_counts = dict.fromkeys(range(game_config.n_actions), 0)
+
     def on_weights_updated(state_dict: dict[str, torch.Tensor]) -> None:
         """Callback to update local model when weights update."""
 
@@ -292,6 +294,8 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
+                action_counts[action] += 1
+
                 # Reward: survival steps are neutral (0), only game over gives penalty (-1)
                 reward = 0.0
 
@@ -335,9 +339,22 @@ def main():
                     fps=metrics.fps,
                     buffer_size=buffer.size(),
                 )
+                tb_logger.log_action_distribution(step_count, action_counts, game_config.action_names)
+                action_counts = dict.fromkeys(range(game_config.n_actions), 0)
 
             eval_tag = "[EVAL] " if is_evaluating else ""
-            line = (
+
+            if is_evaluating:
+                action_str = "--/--/--"
+            else:
+                total_actions = sum(action_counts.values())
+                action_freqs = [
+                    action_counts.get(i, 0) / total_actions if total_actions > 0 else 0
+                    for i in range(game_config.n_actions)
+                ]
+                action_str = "/".join(f"{f:.2f}" for f in action_freqs)
+
+            line1 = (
                 f"{eval_tag}"
                 f"FPS:{metrics.fps:4.0f} "
                 f"Inf:{metrics.process_time * 1000:4.1f}ms "
@@ -346,13 +363,16 @@ def main():
                 f"Q:{metrics.queue_size:2d}/{metrics.queue_max_size} "
                 f"Epi:{episode_count:3d} "
                 f"Step:{step_count:5d} "
-                f"Eps:{epsilon:.2f} "
+                f"Eps:{epsilon:.2f}"
+            )
+            line2 = (
                 f"Buf:{buffer.size():5d} "
                 f"Rwd:{curr_reward if not is_evaluating else 0.0:.1f} "
                 f"Loss:{training_stats['last_loss']:.4f} "
-                f"Q:{training_stats['q_mean']:.2f}"
+                f"Q:{training_stats['q_mean']:.2f} "
+                f"Act:{action_str}"
             )
-            print("\x1b[K" + line, end="\r", flush=True)
+            print(f"\x1b[K{line1}\n\x1b[K{line2}\x1b[A", end="\r", flush=True)
 
             previous_state = current_state
             time.sleep(0.001)

@@ -28,6 +28,24 @@ class TensorBoardLogger:
         self.writer.add_scalar("system/fps", fps, step)
         self.writer.add_scalar("system/buffer_size", buffer_size, step)
 
+    def log_action_distribution(self, step: int, action_counts: dict[int, int], action_names: list[str]) -> None:
+        """Log action distribution as scalars.
+
+        Args:
+            step: Current step count.
+            action_counts: Dict mapping action_id -> count.
+            action_names: List of action names for labeling.
+        """
+        total = sum(action_counts.values())
+        if total == 0:
+            return
+
+        for action_id, count in action_counts.items():
+            if action_id < len(action_names):
+                action_name = action_names[action_id]
+                frequency = count / total
+                self.writer.add_scalar(f"action/{action_name}", frequency, step)
+
     def log_custom_scalar(self, tag: str, value: float, step: int):
         self.writer.add_scalar(tag, value, step)
 
