@@ -41,7 +41,6 @@ class Config:
 
     # Frame buffer settings
     game_over_window: int = 3  # Trailing frames to check for static screen
-    pending_buffer_size: int = 5  # Transitions held before commit
 
     # Evaluation settings
     eval_frequency: int = 50  # Episodes between evaluation phases

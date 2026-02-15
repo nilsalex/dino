@@ -13,10 +13,10 @@ from src.core.types import Frame
 class EpisodeEvent(Enum):
     """Events returned by EpisodeManager.process_frame()."""
 
-    NONE = auto()  # Nothing happened, continue normal operation
-    GAME_OVER = auto()  # Game just ended (first detection)
-    RESET_GAME = auto()  # Time to send reset key
-    EPISODE_READY = auto()  # Game restarted, ready for new episode
+    NONE = auto()
+    GAME_OVER = auto()
+    RESET_GAME = auto()
+    EPISODE_READY = auto()
 
 
 class EpisodeState(Enum):
@@ -32,7 +32,6 @@ class EpisodeManager:
 
     Handles:
     - Game over detection
-    - Pending buffer commits with correct reward attribution
     - Reset timing (delay before reset, cooldown after)
     - Episode counting and statistics
     - Evaluation mode tracking
@@ -41,33 +40,27 @@ class EpisodeManager:
     def __init__(self, ctx: EpisodeContext):
         self._ctx = ctx
 
-        # State machine
         self._state = EpisodeState.RUNNING
         self._delay_counter = 0
         self._cooldown_counter = 0
 
-        # Episode stats
         self._episode_count = 0
         self._episode_steps = 0
         self._curr_reward = 0.0
         self._total_reward = 0.0
 
-        # Evaluation mode
-        self._is_evaluating = True  # Start with evaluation
+        self._is_evaluating = True
         self._eval_episode_count = 1
         self._eval_episodes_remaining = ctx.config.eval_episodes
         self._eval_step_count = 0
         self._best_eval_score = 0
-
-        # Game over offset from last detection
-        self._pending_game_over_offset: int | None = None
 
     def process_frame(self, frames: list[Frame], current_state: torch.Tensor) -> EpisodeEvent:
         """Process frame and handle episode lifecycle.
 
         Args:
             frames: List of recent frames for game over detection.
-            current_state: Current state tensor for pending buffer commits.
+            current_state: Current state tensor (unused, kept for API compatibility).
 
         Returns:
             EpisodeEvent indicating what happened.
@@ -75,36 +68,28 @@ class EpisodeManager:
         is_game_over, offset = self._ctx.state_monitor.check_game_over(frames)
 
         if self._state == EpisodeState.RUNNING:
-            return self._handle_running(is_game_over, offset, current_state)
+            return self._handle_running(is_game_over, offset)
 
         if self._state == EpisodeState.GAME_OVER_DETECTED:
             return self._handle_game_over_detected()
 
         if self._state == EpisodeState.RESETTING:
-            return self._handle_resetting(is_game_over, current_state)
+            return self._handle_resetting(is_game_over)
 
         return EpisodeEvent.NONE
 
-    def _handle_running(self, is_game_over: bool, offset: int, current_state: torch.Tensor) -> EpisodeEvent:
+    def _handle_running(self, is_game_over: bool, offset: int) -> EpisodeEvent:
         """Handle RUNNING state."""
         if not is_game_over:
             return EpisodeEvent.NONE
 
-        # Only process first game over detection (offset > 0)
-        # offset=0 means continued game over state, not a new detection
         if offset == 0:
             return EpisodeEvent.NONE
 
-        # Game over detected - commit pending transitions
-        if not self._is_evaluating and len(self._ctx.pending_buffer) > 0:
-            self._ctx.pending_buffer.commit(
-                lambda s, a, r, ns, d: self._ctx.experience_buffer.add(s, a, r, ns, d),
-                next_state=current_state,
-                game_over_offset=offset,
-            )
-        self._curr_reward += -1.0
+        if not self._is_evaluating:
+            self._ctx.experience_buffer.mark_last_as_terminal(-1.0)
+            self._curr_reward += -1.0
 
-        self._pending_game_over_offset = offset
         self._state = EpisodeState.GAME_OVER_DETECTED
         self._delay_counter = 0
 
@@ -117,25 +102,22 @@ class EpisodeManager:
         if self._delay_counter < self._ctx.game_config.reset_delay_frames:
             return EpisodeEvent.NONE
 
-        # Time to send reset key
         self._state = EpisodeState.RESETTING
         self._cooldown_counter = 0
 
         return EpisodeEvent.RESET_GAME
 
-    def _handle_resetting(self, is_game_over: bool, current_state: torch.Tensor) -> EpisodeEvent:
+    def _handle_resetting(self, is_game_over: bool) -> EpisodeEvent:
         """Handle RESETTING state."""
         if is_game_over:
             self._cooldown_counter += 1
             return EpisodeEvent.NONE
 
-        # Game has restarted (variance went high)
         self._state = EpisodeState.RUNNING
-        self._ctx.pending_buffer.clear()
 
-        return self._complete_episode(current_state)
+        return self._complete_episode()
 
-    def _complete_episode(self, current_state: torch.Tensor) -> EpisodeEvent:
+    def _complete_episode(self) -> EpisodeEvent:
         """Complete the current episode and prepare for the next."""
         if self._is_evaluating:
             return self._complete_eval_episode()
@@ -161,12 +143,11 @@ class EpisodeManager:
                 print(f"[EVAL] Starting next eval episode ({self._eval_episodes_remaining} remaining)\n")
                 return EpisodeEvent.EPISODE_READY
 
-            # Evaluation complete
             self._is_evaluating = False
             self._eval_episodes_remaining = self._ctx.config.eval_episodes
+            self._curr_reward = 0.0
             return EpisodeEvent.EPISODE_READY
 
-        # Episode too short
         print(f"[EVAL] Episode too short ({self._eval_step_count} steps), restarting eval...")
         self._eval_step_count = 0
         return EpisodeEvent.EPISODE_READY
@@ -190,35 +171,11 @@ class EpisodeManager:
 
             return EpisodeEvent.EPISODE_READY
 
-        # Episode too short
         print(f"[WARN] Episode too short ({self._episode_steps} steps), not counting")
         self._curr_reward = 0.0
         self._episode_steps = 0
 
         return EpisodeEvent.EPISODE_READY
-
-    def add_pending(self, state: torch.Tensor, action: int) -> None:
-        """Add a pending transition.
-
-        Args:
-            state: The state tensor when action was taken.
-            action: The action taken.
-        """
-        self._ctx.pending_buffer.add(state, action)
-
-    def commit_pending(self, next_state: torch.Tensor) -> None:
-        """Commit pending transitions as non-terminal.
-
-        Called when pending buffer is full but no game over.
-
-        Args:
-            next_state: The current state (next state for last pending).
-        """
-        self._ctx.pending_buffer.commit(
-            lambda s, a, r, ns, d: self._ctx.experience_buffer.add(s, a, r, ns, d),
-            next_state=next_state,
-            game_over_offset=0,
-        )
 
     def is_game_over(self) -> bool:
         """Check if currently in game over state."""

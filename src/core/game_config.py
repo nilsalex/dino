@@ -18,6 +18,7 @@ class GameConfig:
     reset_delay_frames: int = 1
     reset_cooldown_frames: int = 5
     min_episode_steps: int = 1
+    frame_skip_mode: str = "repeat"
 
 
 GAME_CONFIGS: dict[str, GameConfig] = {
@@ -28,14 +29,16 @@ GAME_CONFIGS: dict[str, GameConfig] = {
         action_keys=[0, 103],
         action_names=["NO_ACTION", "JUMP_UP"],
         action_keys_str=["", " "],
+        frame_skip_mode="repeat",
     ),
     "reaction": GameConfig(
         n_actions=3,
         frame_stack=1,
-        frame_skip=1,
+        frame_skip=5,
         action_keys=[0, 30, 48],
         action_names=["DO_NOTHING", "PRESS_A", "PRESS_B"],
         action_keys_str=["", "a", "b"],
+        frame_skip_mode="single",
     ),
 }
 

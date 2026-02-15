@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from src.agents.local_trainer import LocalDQNTrainer
     from src.buffers.thread_safe_buffer import ThreadSafeExperienceBuffer
     from src.env.game_interface import GameInterface
-    from src.env.pending_buffer import PendingTransitionBuffer
     from src.env.state_monitor import StateMonitor
     from src.env.xlib_interface import XlibGameInterface
     from src.utils.tensorboard_logger import TensorBoardLogger
@@ -29,7 +28,6 @@ class EpisodeContext:
     game_config: GameConfig
     game_interface: GameInterface | XlibGameInterface
     state_monitor: StateMonitor
-    pending_buffer: PendingTransitionBuffer
     experience_buffer: ThreadSafeExperienceBuffer
     local_trainer: LocalDQNTrainer
     tb_logger: TensorBoardLogger

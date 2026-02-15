@@ -108,3 +108,17 @@ class ThreadSafeExperienceBuffer:
         """Get current buffer size (thread-safe)."""
 
         return self.size()
+
+    def mark_last_as_terminal(self, reward: float) -> None:
+        """Mark the last transition as terminal with given reward.
+
+        Args:
+            reward: The reward to set for the last transition.
+
+        Note:
+            Used when game over is detected after the transition was recorded.
+        """
+        with self.lock:
+            if len(self._rewards) > 0:
+                self._rewards[-1] = reward
+                self._dones[-1] = True

@@ -24,7 +24,6 @@ from src.core.episode_context import EpisodeContext
 from src.core.game_config import get_game_config
 from src.env.episode_manager import EpisodeEvent, EpisodeManager
 from src.env.game_interface import GameInterface
-from src.env.pending_buffer import PendingTransitionBuffer
 from src.env.state_monitor import StateMonitor
 from src.env.xlib_interface import XlibGameInterface
 from src.training.local_training_thread import LocalTrainingThread
@@ -64,8 +63,8 @@ def main():
     print(f"Game: {config.game_name}")
     print(f"Actions: {game_config.action_names}")
     print(f"Frame stack: {game_config.frame_stack}, Frame skip: {game_config.frame_skip}")
+    print(f"Frame skip mode: {game_config.frame_skip_mode}")
     print(f"Game over window: {config.game_over_window}")
-    print(f"Pending buffer size: {config.pending_buffer_size}")
     print(f"Input method: {'Xlib' if config.headless else 'evdev'}")
     if config.headless:
         print(f"Headless mode: display {config.display_name}")
@@ -103,7 +102,6 @@ def main():
         game_interface = GameInterface(game_config.action_keys)
 
     state_monitor = StateMonitor(game_over_window=config.game_over_window)
-    pending_buffer = PendingTransitionBuffer(max_size=config.pending_buffer_size)
     frame_processor = FrameProcessor(config, game_config.frame_stack)
     metrics_tracker = MetricsTracker()
     tb_logger = TensorBoardLogger(log_dir="runs")
@@ -113,7 +111,6 @@ def main():
         game_config=game_config,
         game_interface=game_interface,
         state_monitor=state_monitor,
-        pending_buffer=pending_buffer,
         experience_buffer=buffer,
         local_trainer=local_trainer,
         tb_logger=tb_logger,
@@ -199,56 +196,53 @@ def main():
                 time.sleep(0.001)
                 continue
 
-            # Action selection
             processing_start = time.perf_counter()
             frame_skip_counter += 1
 
-            if frame_skip_counter % game_config.frame_skip == 0 or current_action is None:
+            is_action_frame = frame_skip_counter % game_config.frame_skip == 0 or current_action is None
+
+            if is_action_frame:
                 if episode_manager.is_evaluating() or (buffer.size() > 0 and random.random() >= epsilon):
                     action = local_model.get_action(previous_state)
                 else:
                     action = random.randint(0, game_config.n_actions - 1)
                 current_action = action
 
-                # Decay epsilon
                 if step_count < config.epsilon_decay:
                     epsilon = max(
                         config.epsilon_end,
                         config.epsilon_start
                         - (config.epsilon_start - config.epsilon_end) * (step_count / config.epsilon_decay),
                     )
-            else:
-                action = current_action
 
-            game_interface.execute_action(int(action))
+                game_interface.execute_action(int(action))
+
+                if not episode_manager.is_evaluating():
+                    action_history.append(action)
+                    buffer.add(
+                        previous_state.squeeze(0),
+                        action,
+                        0.0,
+                        current_state.squeeze(0),
+                        False,
+                    )
+            elif game_config.frame_skip_mode == "repeat":
+                game_interface.execute_action(int(current_action) if current_action is not None else 0)
+
             processing_time = time.perf_counter() - processing_start
-
-            # Record transition
-            if not episode_manager.is_evaluating():
-                action_history.append(action)
-                episode_manager.add_pending(previous_state.squeeze(0), action)
-
-                # Commit if pending buffer is full
-                if len(pending_buffer) >= config.pending_buffer_size:
-                    episode_manager.commit_pending(current_state.squeeze(0))
 
             episode_manager.increment_step()
 
-            if episode_manager.is_evaluating():
-                step_count += 1
-            else:
-                step_count += 1
+            step_count += 1
 
-                # Update target network locally
-                if step_count > 0 and step_count % 1000 == 0:
-                    local_trainer.update_target()
+            if step_count > 0 and step_count % 1000 == 0:
+                local_trainer.update_target()
 
-                # Save checkpoint
-                if step_count % config.checkpoint_freq == 0:
-                    checkpoint_path = config.checkpoint_path / f"checkpoint_{step_count}.pt"
-                    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-                    local_trainer.save_checkpoint(str(checkpoint_path), step_count)
-                    print(f"\n[CHECKPOINT] Saved checkpoint to {checkpoint_path}")
+            if step_count % config.checkpoint_freq == 0:
+                checkpoint_path = config.checkpoint_path / f"checkpoint_{step_count}.pt"
+                checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                local_trainer.save_checkpoint(str(checkpoint_path), step_count)
+                print(f"\n[CHECKPOINT] Saved checkpoint to {checkpoint_path}")
 
             # Metrics and logging
             metrics = metrics_tracker.update(
