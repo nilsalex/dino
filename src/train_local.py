@@ -132,6 +132,7 @@ def main():
 
     epsilon = config.epsilon_start
     step_count = 0
+    last_eval_episode = -1  # Track last episode count when we triggered evaluation
 
     print("Starting local training...")
     print("Make sure the game is open and visible!")
@@ -185,7 +186,9 @@ def main():
                     not stats["is_evaluating"]
                     and stats["episode_count"] > 0
                     and stats["episode_count"] % config.eval_frequency == 0
+                    and stats["episode_count"] != last_eval_episode
                 ):
+                    last_eval_episode = stats["episode_count"]
                     episode_manager.start_evaluation()
 
                 continue

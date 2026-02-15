@@ -102,7 +102,7 @@ class EpisodeManager:
                 next_state=current_state,
                 game_over_offset=offset,
             )
-            self._curr_reward += -1.0
+        self._curr_reward += -1.0
 
         self._pending_game_over_offset = offset
         self._state = EpisodeState.GAME_OVER_DETECTED
