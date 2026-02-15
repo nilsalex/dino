@@ -9,6 +9,7 @@ gi.require_version("Gst", "1.0")
 
 import random
 import time
+from collections import deque
 
 import torch
 from gi.repository import Gst
@@ -100,7 +101,7 @@ def main():
     frame_processor = FrameProcessor(config, game_config.frame_stack)
     metrics_tracker = MetricsTracker()
 
-    action_counts = dict.fromkeys(range(game_config.n_actions), 0)
+    action_history: deque[int] = deque(maxlen=100)
 
     def on_weights_updated(state_dict: dict[str, torch.Tensor]) -> None:
         """Callback to update local model when weights update."""
@@ -294,7 +295,7 @@ def main():
                 eval_step_count += 1
                 step_count += 1
             else:
-                action_counts[action] += 1
+                action_history.append(action)
 
                 # Reward: survival steps are neutral (0), only game over gives penalty (-1)
                 reward = 0.0
@@ -339,20 +340,20 @@ def main():
                     fps=metrics.fps,
                     buffer_size=buffer.size(),
                 )
-                tb_logger.log_action_distribution(step_count, action_counts, game_config.action_names)
-                action_counts = dict.fromkeys(range(game_config.n_actions), 0)
 
             eval_tag = "[EVAL] " if is_evaluating else ""
 
             if is_evaluating:
                 action_str = "--/--/--"
             else:
-                total_actions = sum(action_counts.values())
+                total = len(action_history)
                 action_freqs = [
-                    action_counts.get(i, 0) / total_actions if total_actions > 0 else 0
-                    for i in range(game_config.n_actions)
+                    action_history.count(i) / total if total > 0 else 0 for i in range(game_config.n_actions)
                 ]
                 action_str = "/".join(f"{f:.2f}" for f in action_freqs)
+
+                if step_count % 100 == 0:
+                    tb_logger.log_action_distribution(step_count, action_freqs, game_config.action_names)
 
             line1 = (
                 f"{eval_tag}"
