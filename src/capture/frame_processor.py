@@ -12,13 +12,18 @@ from src.core.types import Frame, FrameBuffer, State
 
 
 class FrameProcessor:
-    """Handles frame buffering, preprocessing and state preparation."""
+    """Handles frame buffering, preprocessing and state preparation.
+
+    Uses a single sliding window buffer for both state representation
+    and game over detection.
+    """
 
     def __init__(self, config: Config, frame_stack: int = 4):
         self.config = config
         self.frame_stack = frame_stack
-        self.frame_buffer: FrameBuffer = deque(maxlen=frame_stack)
-        self.game_over_buffer: FrameBuffer = deque(maxlen=2)
+        # Buffer must be large enough for both state and game over detection
+        buffer_size = max(frame_stack, config.game_over_window + 1)
+        self.frame_buffer: FrameBuffer = deque(maxlen=buffer_size)
         self.frame_queue: Queue[Frame] = Queue(maxsize=config.frame_queue_maxsize)
         self.input_frame_count = 0
 
@@ -48,7 +53,6 @@ class FrameProcessor:
     def _add_to_buffer(self, frame: Frame) -> None:
         """Add frame to buffer and optionally save for debug."""
         self.frame_buffer.append(frame)
-        self.game_over_buffer.append(frame)
 
         if self.config.save_frames and self.input_frame_count < self.config.save_max_frames:
             self._save_debug_frame(frame)
@@ -63,13 +67,24 @@ class FrameProcessor:
 
     def _preprocess(self) -> State:
         """Convert frame buffer to tensor state."""
-        stacked = np.stack(list(self.frame_buffer), axis=0)
+        frames = list(self.frame_buffer)
+        # Use only the last frame_stack frames
+        if len(frames) > self.frame_stack:
+            frames = frames[-self.frame_stack :]
+        stacked = np.stack(frames, axis=0)
         tensor = torch.from_numpy(stacked).float() / 255.0
         return tensor.unsqueeze(0).to(self.config.device)
 
     def buffer_ready(self) -> bool:
         """Check if buffer has enough frames."""
         return len(self.frame_buffer) >= self.frame_stack
+
+    def get_frames_for_game_over(self, window: int) -> list[Frame]:
+        """Get the last N frames from buffer for game over detection."""
+        frames = list(self.frame_buffer)
+        if len(frames) < window:
+            return frames
+        return frames[-window:]
 
     @property
     def queue_size(self) -> int:

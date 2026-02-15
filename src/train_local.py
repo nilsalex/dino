@@ -20,8 +20,11 @@ from src.buffers.thread_safe_buffer import ThreadSafeExperienceBuffer
 from src.capture.frame_processor import FrameProcessor
 from src.capture.gstreamer import GStreamerPipeline
 from src.core.config import Config
+from src.core.episode_context import EpisodeContext
 from src.core.game_config import get_game_config
+from src.env.episode_manager import EpisodeEvent, EpisodeManager
 from src.env.game_interface import GameInterface
+from src.env.pending_buffer import PendingTransitionBuffer
 from src.env.state_monitor import StateMonitor
 from src.env.xlib_interface import XlibGameInterface
 from src.training.local_training_thread import LocalTrainingThread
@@ -61,6 +64,8 @@ def main():
     print(f"Game: {config.game_name}")
     print(f"Actions: {game_config.action_names}")
     print(f"Frame stack: {game_config.frame_stack}, Frame skip: {game_config.frame_skip}")
+    print(f"Game over window: {config.game_over_window}")
+    print(f"Pending buffer size: {config.pending_buffer_size}")
     print(f"Input method: {'Xlib' if config.headless else 'evdev'}")
     if config.headless:
         print(f"Headless mode: display {config.display_name}")
@@ -97,15 +102,28 @@ def main():
     else:
         game_interface = GameInterface(game_config.action_keys)
 
-    state_monitor = StateMonitor()
+    state_monitor = StateMonitor(game_over_window=config.game_over_window)
+    pending_buffer = PendingTransitionBuffer(max_size=config.pending_buffer_size)
     frame_processor = FrameProcessor(config, game_config.frame_stack)
     metrics_tracker = MetricsTracker()
+    tb_logger = TensorBoardLogger(log_dir="runs")
 
+    ctx = EpisodeContext(
+        config=config,
+        game_config=game_config,
+        game_interface=game_interface,
+        state_monitor=state_monitor,
+        pending_buffer=pending_buffer,
+        experience_buffer=buffer,
+        local_trainer=local_trainer,
+        tb_logger=tb_logger,
+    )
+
+    episode_manager = EpisodeManager(ctx)
     action_history: deque[int] = deque(maxlen=100)
 
     def on_weights_updated(state_dict: dict[str, torch.Tensor]) -> None:
         """Callback to update local model when weights update."""
-
         local_model.update_state_dict(state_dict)
 
     print("Starting background training thread...")
@@ -114,25 +132,10 @@ def main():
 
     epsilon = config.epsilon_start
     step_count = 0
-    episode_count = 0
-
-    is_evaluating = True
-    eval_step_count = 0
-    eval_episode_count = 1
-    eval_episodes_remaining = 5
-    best_eval_score = 0
-
-    total_reward = 0.0
-    curr_reward = 0.0
-    episode_steps = 0
-
-    min_episode_steps = 1
 
     print("Starting local training...")
     print("Make sure the game is open and visible!")
-    if config.game_name == "dino":
-        print("Make sure Chrome Dino game is open and visible!")
-    print("[EVAL] Starting initial greedy evaluation episode (baseline)\\n")
+    print("[EVAL] Starting initial greedy evaluation episode (baseline)\n")
 
     gst_pipeline = GStreamerPipeline(config)
     gst_pipeline.create_pipeline()
@@ -148,20 +151,13 @@ def main():
         raise RuntimeError("Could not get appsink from GStreamer pipeline")
 
     previous_state: torch.Tensor | None = None
-    is_resetting: bool = False
-    reset_delay_counter: int = 0
-    reset_delay_frames: int = 1
-    reset_cooldown_counter: int = 0
-    reset_cooldown_frames: int = 5
-
     frame_skip_counter = 0
     current_action: int | None = None
 
-    tb_logger = TensorBoardLogger(log_dir="runs")
     print(f"TensorBoard logging initialized at {tb_logger.log_dir}")
 
     try:
-        while episode_count < config.max_episodes:
+        while episode_manager.get_stats()["episode_count"] < config.max_episodes:
             pull_frame_from_appsink(appsink, frame_processor)
 
             current_state = frame_processor.get_state()
@@ -171,108 +167,41 @@ def main():
                 time.sleep(0.001)
                 continue
 
-            is_game_over = state_monitor.is_game_over(frame_processor.game_over_buffer)
+            # Episode lifecycle management
+            frames_for_detection = frame_processor.get_frames_for_game_over(config.game_over_window + 1)
+            event = episode_manager.process_frame(frames_for_detection, current_state.squeeze(0))
 
-            # Handle game over and surgical reset
-            if is_game_over and not is_resetting:
-                # Add terminal transition with penalty for game over
-                if not is_evaluating and previous_state is not None and current_action is not None:
-                    reward = -1.0
-                    buffer.add(previous_state.squeeze(0), current_action, reward, current_state.squeeze(0), done=True)
-                    curr_reward += reward
-
-                is_resetting = True
-                reset_delay_counter = 0
-                reset_cooldown_counter = 0
-                continue
-            elif is_game_over and reset_delay_counter < reset_delay_frames:
-                reset_delay_counter += 1
-                continue
-            elif is_game_over:
-                # Wait has passed, send space to reset the game
+            if event == EpisodeEvent.RESET_GAME:
                 game_interface.reset_game()
-                reset_cooldown_counter = 0
-
-                # Skip normal action and recording during reset
                 continue
-            elif is_resetting:
-                # Game is running again, but wait for cooldown to pass
-                reset_cooldown_counter += 1
-                if reset_cooldown_counter >= reset_cooldown_frames:
-                    # Reset complete - game is now stably running
-                    is_resetting = False
-                else:
-                    # Still in cooldown, skip action and recording
-                    continue
-
-                # Handle episode completion
-                if is_evaluating:
-                    if eval_step_count > 1:
-                        print(
-                            f"\n[EVAL] Episode {eval_episode_count} complete. Steps: {eval_step_count}\n",
-                            end="",
-                            flush=True,
-                        )
-                        if eval_step_count > best_eval_score:
-                            best_eval_score = eval_step_count
-                            print(f"[BEST] New evaluation score: {best_eval_score}\n")
-                        eval_episodes_remaining -= 1
-                        eval_episode_count += 1
-                        eval_step_count = 0
-                        if eval_episodes_remaining > 0:
-                            print(f"[EVAL] Starting next eval episode ({eval_episodes_remaining} remaining)\n")
-                            previous_state = None
-                            current_action = None
-                            frame_skip_counter = 0
-                            continue
-                        else:
-                            is_evaluating = False
-                            eval_episodes_remaining = 5
-                    else:
-                        print(f"[EVAL] Episode too short ({eval_step_count} steps), restarting eval...")
-                        eval_step_count = 0
-                        previous_state = None
-                        current_action = None
-                        frame_skip_counter = 0
-                        continue
-                else:
-                    if episode_steps >= min_episode_steps:
-                        episode_count += 1
-                        total_reward += curr_reward
-                        status = "[GAME OVER]"
-                        episode_reward = curr_reward
-                        episode_length = episode_steps
-                        print(
-                            f"\r\x1b[K{status} Episode {episode_count} complete. "
-                            f"Steps: {step_count}, Reward: {episode_reward:.2f}\n",
-                            end="",
-                            flush=True,
-                        )
-                        tb_logger.log_episode(episode_count, episode_reward, episode_length)
-                        curr_reward = 0.0
-                        episode_steps = 0
-
-                        if episode_count % 50 == 0:
-                            is_evaluating = True
-                            eval_episode_count += 1
-                            eval_episodes_remaining = 5
-                            print("[EVAL] Starting 5 consecutive greedy evaluation episodes\n")
-                    else:
-                        print(f"[WARN] Episode too short ({episode_steps} steps), not counting")
-                        curr_reward = 0.0
-                        episode_steps = 0
-
+            elif event == EpisodeEvent.EPISODE_READY:
+                previous_state = None
                 current_action = None
                 frame_skip_counter = 0
+
+                # Check for evaluation trigger
+                stats = episode_manager.get_stats()
+                if (
+                    not stats["is_evaluating"]
+                    and stats["episode_count"] > 0
+                    and stats["episode_count"] % config.eval_frequency == 0
+                ):
+                    episode_manager.start_evaluation()
+
                 continue
 
-            # Local inference for fast action selection
-            processing_start = time.perf_counter()
+            # Skip action selection during game over state
+            if episode_manager.is_game_over():
+                previous_state = current_state
+                time.sleep(0.001)
+                continue
 
+            # Action selection
+            processing_start = time.perf_counter()
             frame_skip_counter += 1
 
             if frame_skip_counter % game_config.frame_skip == 0 or current_action is None:
-                if is_evaluating or (buffer.size() > 0 and random.random() >= epsilon):
+                if episode_manager.is_evaluating() or (buffer.size() > 0 and random.random() >= epsilon):
                     action = local_model.get_action(previous_state)
                 else:
                     action = random.randint(0, game_config.n_actions - 1)
@@ -291,19 +220,21 @@ def main():
             game_interface.execute_action(int(action))
             processing_time = time.perf_counter() - processing_start
 
-            if is_evaluating:
-                eval_step_count += 1
+            # Record transition
+            if not episode_manager.is_evaluating():
+                action_history.append(action)
+                episode_manager.add_pending(previous_state.squeeze(0), action)
+
+                # Commit if pending buffer is full
+                if len(pending_buffer) >= config.pending_buffer_size:
+                    episode_manager.commit_pending(current_state.squeeze(0))
+
+            episode_manager.increment_step()
+
+            if episode_manager.is_evaluating():
                 step_count += 1
             else:
-                action_history.append(action)
-
-                # Reward: survival steps are neutral (0), only game over gives penalty (-1)
-                reward = 0.0
-
-                # Record transition (terminal only on natural game over)
-                buffer.add(previous_state.squeeze(0), action, reward, current_state.squeeze(0), is_game_over)
-                curr_reward += reward
-                episode_steps += 1
+                step_count += 1
 
                 # Update target network locally
                 if step_count > 0 and step_count % 1000 == 0:
@@ -316,8 +247,7 @@ def main():
                     local_trainer.save_checkpoint(str(checkpoint_path), step_count)
                     print(f"\n[CHECKPOINT] Saved checkpoint to {checkpoint_path}")
 
-                step_count += 1
-
+            # Metrics and logging
             metrics = metrics_tracker.update(
                 processing_time, frame_processor.queue_size, frame_processor.max_queue_size
             )
@@ -325,7 +255,7 @@ def main():
             training_stats = training_thread.get_stats()
             loss = training_stats["last_loss"]
 
-            if not is_evaluating and training_stats["training_count"] > 0 and step_count % 10 == 0:
+            if not episode_manager.is_evaluating() and training_stats["training_count"] > 0 and step_count % 10 == 0:
                 tb_logger.log_training_metrics(
                     step_count,
                     loss=loss,
@@ -333,7 +263,7 @@ def main():
                     q_max=None,
                 )
 
-            if not is_evaluating and step_count % 100 == 0:
+            if not episode_manager.is_evaluating() and step_count % 100 == 0:
                 tb_logger.log_system_metrics(
                     step_count,
                     epsilon=epsilon,
@@ -341,9 +271,11 @@ def main():
                     buffer_size=buffer.size(),
                 )
 
-            eval_tag = "[EVAL] " if is_evaluating else ""
+            # Status display
+            stats = episode_manager.get_stats()
+            eval_tag = "[EVAL] " if stats["is_evaluating"] else ""
 
-            if is_evaluating:
+            if stats["is_evaluating"]:
                 action_str = "--/--/--"
             else:
                 total = len(action_history)
@@ -362,13 +294,13 @@ def main():
                 f"Tr:{training_stats['training_count']:5d} "
                 f"Sync:{training_stats['weight_sync_count']:4d} "
                 f"Q:{metrics.queue_size:2d}/{metrics.queue_max_size} "
-                f"Epi:{episode_count:3d} "
+                f"Epi:{stats['episode_count']:3d} "
                 f"Step:{step_count:5d} "
                 f"Eps:{epsilon:.2f}"
             )
             line2 = (
                 f"Buf:{buffer.size():5d} "
-                f"Rwd:{curr_reward if not is_evaluating else 0.0:.1f} "
+                f"Rwd:{stats['curr_reward'] if not stats['is_evaluating'] else 0.0:.1f} "
                 f"Loss:{training_stats['last_loss']:.4f} "
                 f"Q:{training_stats['q_mean']:.2f} "
                 f"Act:{action_str}"
@@ -383,9 +315,8 @@ def main():
 
     finally:
         tb_logger.close()
-        print(f"\\nReplay buffer: {buffer.size()} / {buffer.max_size} transitions")
+        print(f"\nReplay buffer: {buffer.size()} / {buffer.max_size} transitions")
         if buffer.size() > 0:
-            # Print last 50 transitions to verify rewards are recorded
             sample_size = min(50, buffer.size())
             with buffer.lock:
                 print(f"Last {sample_size} transitions in buffer:")

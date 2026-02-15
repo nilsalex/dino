@@ -15,6 +15,9 @@ class GameConfig:
     action_keys_str: list[str] | None = None
     reset_key: int = 32
     reset_key_str: str = " "
+    reset_delay_frames: int = 1
+    reset_cooldown_frames: int = 5
+    min_episode_steps: int = 1
 
 
 GAME_CONFIGS: dict[str, GameConfig] = {

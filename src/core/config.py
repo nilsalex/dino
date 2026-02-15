@@ -39,6 +39,14 @@ class Config:
     max_episodes: int = 999999999
     device: torch.device | None = None
 
+    # Frame buffer settings
+    game_over_window: int = 3  # Trailing frames to check for static screen
+    pending_buffer_size: int = 5  # Transitions held before commit
+
+    # Evaluation settings
+    eval_frequency: int = 50  # Episodes between evaluation phases
+    eval_episodes: int = 5  # Number of episodes per evaluation phase
+
     # Headless mode (ximagesrc capture)
     headless: bool = os.getenv("HEADLESS", "").lower() == "true"
 
