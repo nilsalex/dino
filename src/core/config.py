@@ -28,12 +28,12 @@ class Config:
     learning_rate: float = 1e-4
     batch_size: int = 32
     gamma: float = 0.99
-    epsilon_start: float = 0.2
+    epsilon_start: float = 0.8
     epsilon_end: float = 0.05
     epsilon_decay: int = 100000
     target_update_freq: int = 100
-    replay_buffer_size: int = 2000
-    min_buffer_size: int = 200
+    replay_buffer_size: int = 10000
+    min_buffer_size: int = 1000
     checkpoint_path: Path = Path("./checkpoints")
     checkpoint_freq: int = 1000
     max_episodes: int = 999999999
