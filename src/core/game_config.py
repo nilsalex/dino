@@ -19,6 +19,7 @@ class GameConfig:
     reset_cooldown_frames: int = 5
     min_episode_steps: int = 1
     frame_skip_mode: str = "repeat"
+    max_eval_steps: int = 10000
 
 
 GAME_CONFIGS: dict[str, GameConfig] = {
@@ -39,6 +40,7 @@ GAME_CONFIGS: dict[str, GameConfig] = {
         action_names=["DO_NOTHING", "PRESS_A", "PRESS_B"],
         action_keys_str=["", "a", "b"],
         frame_skip_mode="single",
+        max_eval_steps=500,
     ),
 }
 

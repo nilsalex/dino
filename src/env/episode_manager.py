@@ -17,6 +17,7 @@ class EpisodeEvent(Enum):
     GAME_OVER = auto()
     RESET_GAME = auto()
     EPISODE_READY = auto()
+    EVAL_TIMEOUT = auto()
 
 
 class EpisodeState(Enum):
@@ -25,6 +26,7 @@ class EpisodeState(Enum):
     RUNNING = auto()
     GAME_OVER_DETECTED = auto()
     RESETTING = auto()
+    EVAL_TIMEOUT_DETECTED = auto()
 
 
 class EpisodeManager:
@@ -76,6 +78,9 @@ class EpisodeManager:
         if self._state == EpisodeState.RESETTING:
             return self._handle_resetting(is_game_over)
 
+        if self._state == EpisodeState.EVAL_TIMEOUT_DETECTED:
+            return self._handle_eval_timeout(is_game_over)
+
         return EpisodeEvent.NONE
 
     def _handle_running(self, is_game_over: bool, offset: int) -> EpisodeEvent:
@@ -115,6 +120,14 @@ class EpisodeManager:
 
         self._state = EpisodeState.RUNNING
 
+        return self._complete_episode()
+
+    def _handle_eval_timeout(self, is_game_over: bool) -> EpisodeEvent:
+        """Handle EVAL_TIMEOUT_DETECTED state - waiting for game over after timeout."""
+        if not is_game_over:
+            return EpisodeEvent.NONE
+
+        self._state = EpisodeState.RUNNING
         return self._complete_episode()
 
     def _complete_episode(self) -> EpisodeEvent:
@@ -178,8 +191,12 @@ class EpisodeManager:
         return EpisodeEvent.EPISODE_READY
 
     def is_game_over(self) -> bool:
-        """Check if currently in game over state."""
-        return self._state in (EpisodeState.GAME_OVER_DETECTED, EpisodeState.RESETTING)
+        """Check if currently in game over or eval timeout state."""
+        return self._state in (
+            EpisodeState.GAME_OVER_DETECTED,
+            EpisodeState.RESETTING,
+            EpisodeState.EVAL_TIMEOUT_DETECTED,
+        )
 
     def is_evaluating(self) -> bool:
         """Check if currently in evaluation mode."""
@@ -192,12 +209,26 @@ class EpisodeManager:
         self._eval_episodes_remaining = self._ctx.config.eval_episodes
         print("[EVAL] Starting evaluation phase\n")
 
-    def increment_step(self) -> None:
-        """Increment the appropriate step counter."""
+    def increment_step(self) -> EpisodeEvent:
+        """Increment the appropriate step counter.
+
+        Returns:
+            EpisodeEvent.EVAL_TIMEOUT if evaluation episode exceeded max_eval_steps,
+            otherwise EpisodeEvent.NONE.
+        """
         if self._is_evaluating:
             self._eval_step_count += 1
+            if self._eval_step_count >= self._ctx.game_config.max_eval_steps:
+                self._state = EpisodeState.EVAL_TIMEOUT_DETECTED
+                print(
+                    f"\n[EVAL] Episode {self._eval_episode_count} reached max steps ({self._eval_step_count})\n",
+                    end="",
+                    flush=True,
+                )
+                return EpisodeEvent.EVAL_TIMEOUT
         else:
             self._episode_steps += 1
+        return EpisodeEvent.NONE
 
     def get_stats(self) -> dict:
         """Get episode statistics.

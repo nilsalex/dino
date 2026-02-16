@@ -169,7 +169,7 @@ def main():
             frames_for_detection = frame_processor.get_frames_for_game_over(config.game_over_window + 1)
             event = episode_manager.process_frame(frames_for_detection, current_state.squeeze(0))
 
-            if event == EpisodeEvent.RESET_GAME:
+            if event in (EpisodeEvent.RESET_GAME, EpisodeEvent.EVAL_TIMEOUT):
                 game_interface.reset_game()
                 continue
             elif event == EpisodeEvent.EPISODE_READY:
@@ -231,7 +231,9 @@ def main():
 
             processing_time = time.perf_counter() - processing_start
 
-            episode_manager.increment_step()
+            step_event = episode_manager.increment_step()
+            if step_event == EpisodeEvent.EVAL_TIMEOUT:
+                game_interface.reset_game()
 
             step_count += 1
 
