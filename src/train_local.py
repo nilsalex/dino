@@ -225,6 +225,7 @@ def main():
                         0.0,
                         current_state.squeeze(0),
                         False,
+                        episode_manager.get_stats()["episode_count"],
                     )
             elif game_config.frame_skip_mode == "repeat":
                 game_interface.execute_action(int(current_action) if current_action is not None else 0)
@@ -320,10 +321,11 @@ def main():
             with buffer.lock:
                 print(f"Last {sample_size} transitions in buffer:")
                 for i in range(-sample_size, 0):
+                    episode_id = buffer._episode_ids[i]
                     action = buffer._actions[i]
                     reward = buffer._rewards[i]
                     done = buffer._dones[i]
-                    print(f"  [{i}]: action={action}, reward={reward}, done={done}")
+                    print(f"  [{i}]: episode={episode_id}, action={action}, reward={reward}, done={done}")
         print("Stopping training thread...")
         training_thread.stop()
         gst_pipeline.stop()

@@ -36,6 +36,7 @@ class ThreadSafeExperienceBuffer:
         self._rewards: list[float] = []
         self._next_states: deque[torch.Tensor] = deque(maxlen=self.max_size)
         self._dones: list[bool] = []
+        self._episode_ids: list[int] = []
 
     def add(
         self,
@@ -44,6 +45,7 @@ class ThreadSafeExperienceBuffer:
         reward: float,
         next_state: torch.Tensor,
         done: bool,
+        episode_id: int,
     ) -> None:
         """Add experience to buffer (thread-safe).
 
@@ -53,6 +55,7 @@ class ThreadSafeExperienceBuffer:
             reward: Reward received.
             next_state: Next state tensor [4, 84, 84] (no batch dimension).
             done: Whether episode terminated.
+            episode_id: ID of the episode this transition belongs to.
 
         Note:
             All tensors must be on CPU for thread safety.
@@ -63,6 +66,7 @@ class ThreadSafeExperienceBuffer:
             self._rewards.append(reward)
             self._next_states.append(next_state.detach().cpu())
             self._dones.append(done)
+            self._episode_ids.append(episode_id)
 
     def sample(
         self, batch_size: int
