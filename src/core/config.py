@@ -25,7 +25,7 @@ class Config:
     save_frames: bool = False
     save_dir: Path = Path("./debug_frames")
     save_max_frames: int = 100
-    learning_rate: float = 1e-4
+    learning_rate: float = 0.1
     batch_size: int = 32
     gamma: float = 0.99
     epsilon_start: float = 0.8
