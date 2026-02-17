@@ -54,6 +54,7 @@ class LocalTrainingThread:
         self.training_count: int = 0
         self.weight_sync_count: int = 0
         self._pending_losses: list[dict[str, float]] = []
+        self._last_add_count: int = 0
 
     def start(self) -> None:
         """Start training thread."""
@@ -85,11 +86,22 @@ class LocalTrainingThread:
                 time.sleep(0.1)
                 continue
 
+            current_add_count = self.buffer.get_add_count()
+            new_transitions = current_add_count - self._last_add_count
+            allowed_steps = new_transitions * self.config.train_ratio
+
+            if allowed_steps <= 0:
+                time.sleep(0.01)
+                continue
+
+            self._last_add_count = current_add_count
+
             try:
-                if len(self._pending_losses) < batch_size:
-                    self._dispatch_train_step()
-                else:
-                    self._collect_batch()
+                for _ in range(allowed_steps):
+                    if len(self._pending_losses) < batch_size:
+                        self._dispatch_train_step()
+                    else:
+                        self._collect_batch()
             except Exception as e:
                 print(f"Training error: {e}")
                 time.sleep(0.1)

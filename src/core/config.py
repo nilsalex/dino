@@ -25,13 +25,14 @@ class Config:
     save_frames: bool = False
     save_dir: Path = Path("./debug_frames")
     save_max_frames: int = 100
-    learning_rate: float = 0.1
+    learning_rate: float = 1e-3
     batch_size: int = 32
     gamma: float = 0.99
     epsilon_start: float = 0.8
     epsilon_end: float = 0.05
     epsilon_decay: int = 100000
-    target_update_freq: int = 100
+    target_update_freq: int = 1000
+    train_ratio: int = 4
     replay_buffer_size: int = 10000
     min_buffer_size: int = 1000
     checkpoint_path: Path = Path("./checkpoints")

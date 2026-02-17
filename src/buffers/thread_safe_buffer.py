@@ -37,6 +37,7 @@ class ThreadSafeExperienceBuffer:
         self._next_states: deque[torch.Tensor] = deque(maxlen=self.max_size)
         self._dones: list[bool] = []
         self._episode_ids: list[int] = []
+        self._transitions_added: int = 0
 
     def add(
         self,
@@ -67,6 +68,7 @@ class ThreadSafeExperienceBuffer:
             self._next_states.append(next_state.detach().cpu())
             self._dones.append(done)
             self._episode_ids.append(episode_id)
+            self._transitions_added += 1
 
     def sample(
         self, batch_size: int
@@ -107,6 +109,12 @@ class ThreadSafeExperienceBuffer:
 
         with self.lock:
             return len(self._states)
+
+    def get_add_count(self) -> int:
+        """Get total transitions added counter (thread-safe)."""
+
+        with self.lock:
+            return self._transitions_added
 
     def __len__(self) -> int:
         """Get current buffer size (thread-safe)."""
