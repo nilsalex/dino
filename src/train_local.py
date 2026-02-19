@@ -129,7 +129,8 @@ def main():
 
     epsilon = config.epsilon_start
     step_count = 0
-    last_eval_episode = -1  # Track last episode count when we triggered evaluation
+    last_eval_episode = -1
+    last_transitions = 0
 
     print("Starting local training...")
     print("Make sure the game is open and visible!")
@@ -202,17 +203,19 @@ def main():
             is_action_frame = frame_skip_counter % game_config.frame_skip == 0 or current_action is None
 
             if is_action_frame:
+                transitions = buffer.get_add_count()
+
                 if episode_manager.is_evaluating() or (buffer.size() > 0 and random.random() >= epsilon):
                     action = local_model.get_action(previous_state)
                 else:
                     action = random.randint(0, game_config.n_actions - 1)
                 current_action = action
 
-                if step_count < config.epsilon_decay:
+                if transitions < config.epsilon_decay:
                     epsilon = max(
                         config.epsilon_end,
                         config.epsilon_start
-                        - (config.epsilon_start - config.epsilon_end) * (step_count / config.epsilon_decay),
+                        - (config.epsilon_start - config.epsilon_end) * (transitions / config.epsilon_decay),
                     )
 
                 game_interface.execute_action(int(action))
@@ -227,6 +230,7 @@ def main():
                         False,
                         episode_manager.get_stats()["episode_count"],
                     )
+                    transitions = buffer.get_add_count()
             elif game_config.frame_skip_mode == "repeat":
                 game_interface.execute_action(int(current_action) if current_action is not None else 0)
 
@@ -238,13 +242,13 @@ def main():
 
             step_count += 1
 
-            if step_count > 0 and step_count % 1000 == 0:
-                local_trainer.update_target()
+            transitions = buffer.get_add_count()
+            new_transition = transitions != last_transitions
 
-            if step_count % config.checkpoint_freq == 0:
-                checkpoint_path = config.checkpoint_path / f"checkpoint_{step_count}.pt"
+            if new_transition and transitions > 0 and transitions % config.checkpoint_freq == 0:
+                checkpoint_path = config.checkpoint_path / f"checkpoint_{transitions}.pt"
                 checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-                local_trainer.save_checkpoint(str(checkpoint_path), step_count)
+                local_trainer.save_checkpoint(str(checkpoint_path), transitions)
                 print(f"\n[CHECKPOINT] Saved checkpoint to {checkpoint_path}")
 
             # Metrics and logging
@@ -255,20 +259,30 @@ def main():
             training_stats = training_thread.get_stats()
             loss = training_stats["last_loss"]
 
-            if not episode_manager.is_evaluating() and training_stats["training_count"] > 0 and step_count % 10 == 0:
+            if (
+                new_transition
+                and not episode_manager.is_evaluating()
+                and training_stats["training_count"] > 0
+                and transitions % 10 == 0
+            ):
                 tb_logger.log_training_metrics(
-                    step_count,
+                    transitions,
                     loss=loss,
                     q_mean=training_stats["q_mean"],
                     q_max=None,
                 )
 
-            if not episode_manager.is_evaluating() and step_count % 100 == 0:
+            if new_transition and not episode_manager.is_evaluating() and transitions % 100 == 0:
                 tb_logger.log_system_metrics(
-                    step_count,
+                    transitions,
                     epsilon=epsilon,
                     fps=metrics.fps,
                     buffer_size=buffer.size(),
+                )
+                tb_logger.log_weight_sync(
+                    transitions,
+                    weight_sync_count=training_stats["weight_sync_count"],
+                    training_count=training_stats["training_count"],
                 )
 
             # Status display
@@ -284,8 +298,10 @@ def main():
                 ]
                 action_str = "/".join(f"{f:.2f}" for f in action_freqs)
 
-                if step_count % 100 == 0:
-                    tb_logger.log_action_distribution(step_count, action_freqs, game_config.action_names)
+                if new_transition and transitions % 100 == 0:
+                    tb_logger.log_action_distribution(transitions, action_freqs, game_config.action_names)
+                    action_stats = buffer.get_action_reward_stats()
+                    tb_logger.log_reward_per_action(transitions, action_stats, game_config.action_names)
 
             line1 = (
                 f"{eval_tag}"
@@ -295,7 +311,7 @@ def main():
                 f"Sync:{training_stats['weight_sync_count']:4d} "
                 f"Q:{metrics.queue_size:2d}/{metrics.queue_max_size} "
                 f"Epi:{stats['episode_count']:3d} "
-                f"Step:{step_count:5d} "
+                f"Frames:{step_count:5d} "
                 f"Eps:{epsilon:.2f}"
             )
             line2 = (
@@ -307,6 +323,7 @@ def main():
             )
             print(f"\x1b[K{line1}\n\x1b[K{line2}\x1b[A", end="\r", flush=True)
 
+            last_transitions = transitions
             previous_state = current_state
             time.sleep(0.001)
 

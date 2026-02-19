@@ -28,6 +28,17 @@ class TensorBoardLogger:
         self.writer.add_scalar("system/fps", fps, step)
         self.writer.add_scalar("system/buffer_size", buffer_size, step)
 
+    def log_weight_sync(self, step: int, weight_sync_count: int | float, training_count: int | float):
+        """Log weight sync events.
+
+        Args:
+            step: Current step count (transitions).
+            weight_sync_count: Total weight syncs so far.
+            training_count: Total training steps so far.
+        """
+        self.writer.add_scalar("train/weight_sync_count", weight_sync_count, step)
+        self.writer.add_scalar("train/training_count", training_count, step)
+
     def log_action_distribution(self, step: int, action_freqs: list[float], action_names: list[str]) -> None:
         """Log action distribution as scalars.
 
@@ -40,6 +51,22 @@ class TensorBoardLogger:
             if action_id < len(action_names):
                 action_name = action_names[action_id]
                 self.writer.add_scalar(f"action/{action_name}", freq, step)
+
+    def log_reward_per_action(
+        self, step: int, action_stats: dict[int, dict[str, int]], action_names: list[str]
+    ) -> None:
+        """Log mean reward per action.
+
+        Args:
+            step: Current step count.
+            action_stats: Dict mapping action_id to {'count': int, 'terminal_count': int}.
+            action_names: List of action names for labeling.
+        """
+        for action_id, stats in action_stats.items():
+            if action_id < len(action_names) and stats["count"] > 0:
+                action_name = action_names[action_id]
+                mean_reward = -stats["terminal_count"] / stats["count"]
+                self.writer.add_scalar(f"reward_per_action/{action_name}", mean_reward, step)
 
     def log_custom_scalar(self, tag: str, value: float, step: int):
         self.writer.add_scalar(tag, value, step)

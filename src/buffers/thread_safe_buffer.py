@@ -38,6 +38,7 @@ class ThreadSafeExperienceBuffer:
         self._dones: list[bool] = []
         self._episode_ids: list[int] = []
         self._transitions_added: int = 0
+        self._action_history: deque[tuple[int, bool]] = deque(maxlen=1000)
 
     def add(
         self,
@@ -69,6 +70,7 @@ class ThreadSafeExperienceBuffer:
             self._dones.append(done)
             self._episode_ids.append(episode_id)
             self._transitions_added += 1
+            self._action_history.append((action, False))
 
     def sample(
         self, batch_size: int
@@ -134,3 +136,22 @@ class ThreadSafeExperienceBuffer:
             if len(self._rewards) > 0:
                 self._rewards[-1] = reward
                 self._dones[-1] = True
+                if len(self._action_history) > 0:
+                    action, _ = self._action_history[-1]
+                    self._action_history[-1] = (action, True)
+
+    def get_action_reward_stats(self) -> dict[int, dict[str, int]]:
+        """Get reward statistics per action from rolling window (thread-safe).
+
+        Returns:
+            Dict mapping action_id to dict with 'count' and 'terminal_count'.
+        """
+        with self.lock:
+            stats: dict[int, dict[str, int]] = {}
+            for action, is_terminal in self._action_history:
+                if action not in stats:
+                    stats[action] = {"count": 0, "terminal_count": 0}
+                stats[action]["count"] += 1
+                if is_terminal:
+                    stats[action]["terminal_count"] += 1
+            return stats

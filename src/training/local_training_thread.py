@@ -138,7 +138,7 @@ class LocalTrainingThread:
 
         self._pending_losses.clear()
 
-        should_sync = self.training_count % (self.config.target_update_freq // self.config.batch_size) == 0
+        should_sync = self.training_count % self.config.weight_sync_freq == 0
 
         if should_sync:
             self._sync_weights()
