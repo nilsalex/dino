@@ -98,7 +98,6 @@ class LocalDQNTrainer:
 
         loss = self.criterion(current_q_values, target_q_values)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
         self.optimizer.step()
 
         return {
