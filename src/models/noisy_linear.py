@@ -64,15 +64,6 @@ class NoisyLinear(nn.Module):
         self.epsilon_input.normal_()  # type: ignore[operator]
         self.epsilon_output.normal_()  # type: ignore[operator]
 
-    def _factorised_noise(self) -> torch.Tensor:
-        """Compute factorised noise matrix: epsilon_ij = f(epsilon_i) * f(epsilon_j).
-
-        Where f(x) = sgn(x) * sqrt(|x|)
-        """
-        f_input = self.epsilon_input.sign() * self.epsilon_input.abs().sqrt()  # type: ignore[operator]
-        f_output = self.epsilon_output.sign() * self.epsilon_output.abs().sqrt()  # type: ignore[operator]
-        return f_output.outer(f_input)
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass with noisy weights during training.
 
@@ -84,10 +75,11 @@ class NoisyLinear(nn.Module):
         """
         if self.training:
             self._sample_noise()
-            weight = self.mu_weight + self.sigma_weight * self._factorised_noise()  # type: ignore[operator]
-            bias = self.mu_bias + self.sigma_bias * self.epsilon_output  # type: ignore[operator]
+            f_input = self.epsilon_input.sign() * self.epsilon_input.abs().sqrt()  # type: ignore[operator]
+            f_output = self.epsilon_output.sign() * self.epsilon_output.abs().sqrt()  # type: ignore[operator]
+            weight = self.mu_weight + self.sigma_weight * f_output.outer(f_input)  # type: ignore[operator]
+            bias = self.mu_bias + self.sigma_bias * f_output  # type: ignore[operator]
         else:
-            # Use mean weights during evaluation (deterministic)
             weight = self.mu_weight
             bias = self.mu_bias
 
