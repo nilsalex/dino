@@ -9,6 +9,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from src.models.noisy_linear import NoisyLinear
+
 if TYPE_CHECKING:
     from src.core.config import Config
 
@@ -33,10 +35,10 @@ class LocalDQNTrainer:
         print(f"Local trainer initialized on {self.device}")
 
     def _build_model(self) -> nn.Module:
-        """Build DQN model."""
+        """Build DQN model with NoisyLinear layers for exploration."""
 
         class CNN(nn.Module):
-            def __init__(self, n_actions: int, frame_stack: int):
+            def __init__(self, n_actions: int, frame_stack: int, sigma_init: float):
                 super().__init__()
                 self.conv = nn.Sequential(
                     nn.Conv2d(frame_stack, 16, kernel_size=8, stride=4),
@@ -44,10 +46,11 @@ class LocalDQNTrainer:
                     nn.Conv2d(16, 32, kernel_size=4, stride=2),
                     nn.ReLU(),
                 )
+                # Replace Linear with NoisyLinear for exploration
                 self.fc = nn.Sequential(
-                    nn.Linear(32 * 9 * 9, 256),
+                    NoisyLinear(32 * 9 * 9, 256, sigma_init),
                     nn.ReLU(),
-                    nn.Linear(256, n_actions),
+                    NoisyLinear(256, n_actions, sigma_init),
                 )
 
             def forward(self, x):
@@ -55,7 +58,7 @@ class LocalDQNTrainer:
                 x = x.view(x.size(0), -1)
                 return self.fc(x)
 
-        return CNN(self.n_actions, self.frame_stack)
+        return CNN(self.n_actions, self.frame_stack, self.config.sigma_init)
 
     def train_step(
         self,

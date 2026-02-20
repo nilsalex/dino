@@ -7,7 +7,6 @@ import gi
 
 gi.require_version("Gst", "1.0")
 
-import random
 import time
 from collections import deque
 
@@ -127,14 +126,14 @@ def main():
     training_thread = LocalTrainingThread(config, buffer, local_trainer, on_weights_updated)
     training_thread.start()
 
-    epsilon = config.epsilon_start
     step_count = 0
     last_eval_episode = -1
     last_transitions = 0
 
     print("Starting local training...")
     print("Make sure the game is open and visible!")
-    print("[EVAL] Starting initial greedy evaluation episode (baseline)\n")
+    print("[EVAL] Starting initial greedy evaluation episode (baseline)\\n")
+    print("Using NoisyNet for exploration (no epsilon-greedy)")
 
     gst_pipeline = GStreamerPipeline(config)
     gst_pipeline.create_pipeline()
@@ -205,18 +204,9 @@ def main():
             if is_action_frame:
                 transitions = buffer.get_add_count()
 
-                if episode_manager.is_evaluating() or (buffer.size() > 0 and random.random() >= epsilon):
-                    action = local_model.get_action(previous_state)
-                else:
-                    action = random.randint(0, game_config.n_actions - 1)
+                # NoisyNet: always greedy on noisy Q-values (no epsilon-greedy)
+                action = local_model.get_action(previous_state)
                 current_action = action
-
-                if transitions < config.epsilon_decay:
-                    epsilon = max(
-                        config.epsilon_end,
-                        config.epsilon_start
-                        - (config.epsilon_start - config.epsilon_end) * (transitions / config.epsilon_decay),
-                    )
 
                 game_interface.execute_action(int(action))
 
@@ -275,7 +265,7 @@ def main():
             if new_transition and not episode_manager.is_evaluating() and transitions % 100 == 0:
                 tb_logger.log_system_metrics(
                     transitions,
-                    epsilon=epsilon,
+                    epsilon=0.0,  # NoisyNet doesn't use epsilon
                     fps=metrics.fps,
                     buffer_size=buffer.size(),
                 )
@@ -311,8 +301,7 @@ def main():
                 f"Sync:{training_stats['weight_sync_count']:4d} "
                 f"Q:{metrics.queue_size:2d}/{metrics.queue_max_size} "
                 f"Epi:{stats['episode_count']:3d} "
-                f"Frames:{step_count:5d} "
-                f"Eps:{epsilon:.2f}"
+                f"Frames:{step_count:5d}"
             )
             line2 = (
                 f"Buf:{buffer.size():5d} "

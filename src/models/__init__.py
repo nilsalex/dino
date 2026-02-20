@@ -1,3 +1,5 @@
 """DQN models."""
 
-__all__ = []
+from src.models.noisy_linear import NoisyLinear
+
+__all__ = ["NoisyLinear"]

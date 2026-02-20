@@ -28,9 +28,7 @@ class Config:
     learning_rate: float = 1e-3
     batch_size: int = 32
     gamma: float = 0.99
-    epsilon_start: float = 0.3
-    epsilon_end: float = 0.05
-    epsilon_decay: int = 10000
+    sigma_init: float = 0.5  # NoisyNet sigma initialization
     target_update_freq: int = 1000
     weight_sync_freq: int = 50
     train_ratio: int = 100
