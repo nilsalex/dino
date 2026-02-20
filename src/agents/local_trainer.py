@@ -87,8 +87,14 @@ class LocalDQNTrainer:
             target_q_values = rewards.clone()
 
             if next_states_tensor is not None:
-                next_q_values = self.target_model(next_states_tensor)
-                target_q_values[non_dones] += self.config.gamma * next_q_values.max(1)[0]
+                # Double DQN: use online network for action selection,
+                # target network for value estimation
+                next_q_online = self.model(next_states_tensor)
+                best_actions = next_q_online.argmax(dim=1)
+                next_q_target = self.target_model(next_states_tensor)
+                target_q_values[non_dones] += self.config.gamma * next_q_target.gather(
+                    1, best_actions.unsqueeze(1)
+                ).squeeze(1)
 
         loss = self.criterion(current_q_values, target_q_values)
         loss.backward()
