@@ -85,6 +85,7 @@ def main():
         n_actions=game_config.n_actions,
         device=config.device or torch.device("cpu"),
         frame_stack=game_config.frame_stack,
+        sigma_init=config.sigma_init,
     )
 
     if config.headless:
@@ -129,6 +130,7 @@ def main():
     step_count = 0
     last_eval_episode = -1
     last_transitions = 0
+    was_evaluating = False
 
     print("Starting local training...")
     print("Make sure the game is open and visible!")
@@ -187,6 +189,8 @@ def main():
                 ):
                     last_eval_episode = stats["episode_count"]
                     episode_manager.start_evaluation()
+                    local_model.set_eval_mode()
+                    print("\n[EVAL] Switched to eval mode (deterministic weights)\n")
 
                 continue
 
@@ -278,6 +282,12 @@ def main():
             # Status display
             stats = episode_manager.get_stats()
             eval_tag = "[EVAL] " if stats["is_evaluating"] else ""
+
+            # Switch back to train mode when evaluation ends
+            if was_evaluating and not stats["is_evaluating"]:
+                local_model.set_train_mode()
+                print("\n[TRAIN] Switched to train mode (noisy weights for exploration)\n")
+            was_evaluating = stats["is_evaluating"]
 
             if stats["is_evaluating"]:
                 action_str = "--/--/--"
