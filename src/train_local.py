@@ -278,6 +278,8 @@ def main():
                     weight_sync_count=training_stats["weight_sync_count"],
                     training_count=training_stats["training_count"],
                 )
+                sigma_means = local_model.get_sigma_means()
+                tb_logger.log_sigma_means(transitions, sigma_means, ["fc1", "fc2"])
 
             # Status display
             stats = episode_manager.get_stats()
@@ -313,11 +315,14 @@ def main():
                 f"Epi:{stats['episode_count']:3d} "
                 f"Frames:{step_count:5d}"
             )
+            sigma_means = local_model.get_sigma_means()
+            sigma_str = f"{sum(sigma_means) / len(sigma_means):.3f}" if sigma_means else "0.000"
             line2 = (
                 f"Buf:{buffer.size():5d} "
                 f"Rwd:{stats['curr_reward'] if not stats['is_evaluating'] else 0.0:.1f} "
                 f"Loss:{training_stats['last_loss']:.4f} "
                 f"Q:{training_stats['q_mean']:.2f} "
+                f"Sig:{sigma_str} "
                 f"Act:{action_str}"
             )
             print(f"\x1b[K{line1}\n\x1b[K{line2}\x1b[A", end="\r", flush=True)

@@ -84,3 +84,9 @@ class NoisyLinear(nn.Module):
             bias = self.mu_bias
 
         return F.linear(x, weight, bias)
+
+    def get_sigma_mean(self) -> float:
+        """Get mean absolute sigma value across weight and bias."""
+        sigma_weight_mean = self.sigma_weight.data.abs().mean().item()
+        sigma_bias_mean = self.sigma_bias.data.abs().mean().item()
+        return (sigma_weight_mean + sigma_bias_mean) / 2.0

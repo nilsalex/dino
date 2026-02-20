@@ -75,6 +75,14 @@ class LocalInferenceModel:
         """Set model to eval mode for deterministic behavior (mean weights)."""
         self.model.eval()
 
+    def get_sigma_means(self) -> list[float]:
+        """Get mean sigma values for each NoisyLinear layer."""
+        sigma_means = []
+        for module in self.model.modules():
+            if isinstance(module, NoisyLinear):
+                sigma_means.append(module.get_sigma_mean())
+        return sigma_means
+
     def state_dict(self) -> dict:
         """Get current model state dict."""
         return self.model.state_dict()

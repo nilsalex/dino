@@ -71,5 +71,24 @@ class TensorBoardLogger:
     def log_custom_scalar(self, tag: str, value: float, step: int):
         self.writer.add_scalar(tag, value, step)
 
+    def log_sigma_means(self, step: int, sigma_means: list[float], layer_names: list[str] | None = None):
+        """Log mean sigma values for NoisyLinear layers.
+
+        Args:
+            step: Current step count.
+            sigma_means: List of mean sigma values per layer.
+            layer_names: Optional names for each layer (defaults to layer_0, layer_1, etc.).
+        """
+        if layer_names is None:
+            layer_names = [f"layer_{i}" for i in range(len(sigma_means))]
+
+        for i, sigma in enumerate(sigma_means):
+            if i < len(layer_names):
+                self.writer.add_scalar(f"sigma/{layer_names[i]}", sigma, step)
+
+        # Also log overall mean
+        if sigma_means:
+            self.writer.add_scalar("sigma/mean", sum(sigma_means) / len(sigma_means), step)
+
     def close(self):
         self.writer.close()
