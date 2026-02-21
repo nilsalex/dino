@@ -7,7 +7,6 @@ import gi
 
 gi.require_version("Gst", "1.0")
 
-import random
 import time
 from collections import deque
 
@@ -135,7 +134,8 @@ def main():
 
     print("Starting local training...")
     print("Make sure the game is open and visible!")
-    print("Using NoisyNet for exploration (random actions during warmup)")
+    print("[EVAL] Starting initial greedy evaluation episode (baseline)\\n")
+    print("Using NoisyNet for exploration (no epsilon-greedy)")
 
     gst_pipeline = GStreamerPipeline(config)
     gst_pipeline.create_pipeline()
@@ -179,14 +179,13 @@ def main():
                 current_action = None
                 frame_skip_counter = 0
 
-                # Check for evaluation trigger (skip during warmup)
+                # Check for evaluation trigger
                 stats = episode_manager.get_stats()
                 if (
                     not stats["is_evaluating"]
                     and stats["episode_count"] > 0
                     and stats["episode_count"] % config.eval_frequency == 0
                     and stats["episode_count"] != last_eval_episode
-                    and buffer.size() >= config.min_buffer_size
                 ):
                     last_eval_episode = stats["episode_count"]
                     episode_manager.start_evaluation()
@@ -206,36 +205,23 @@ def main():
 
             is_action_frame = frame_skip_counter % game_config.frame_skip == 0 or current_action is None
 
-            # Check for mode switching before action selection
-            is_evaluating = episode_manager.is_evaluating()
-            if was_evaluating and not is_evaluating:
-                local_model.set_train_mode()
-                print("\n[TRAIN] Switched to train mode (noisy weights for exploration)\n")
-            was_evaluating = is_evaluating
-
             if is_action_frame:
                 transitions = buffer.get_add_count()
 
-                # Use random actions during warmup (buffer not full yet)
-                # NoisyNet exploration is biased by initial weights, so uniform random
-                # ensures diverse experience collection during warmup
-                if not is_evaluating and buffer.size() < config.min_buffer_size:
-                    action = random.randint(0, game_config.n_actions - 1)
-                else:
-                    # NoisyNet: reset noise before action (per paper: "re-sampled before every action")
-                    if not is_evaluating:
-                        local_model.reset_noise()
-                    action = local_model.get_action(previous_state)
+                # NoisyNet: reset noise before action (per paper: "re-sampled before every action")
+                if not episode_manager.is_evaluating():
+                    local_model.reset_noise()
+                action = local_model.get_action(previous_state)
                 current_action = action
 
                 game_interface.execute_action(int(action))
 
-                if not is_evaluating:
+                if not episode_manager.is_evaluating():
                     action_history.append(action)
                     buffer.add(
                         previous_state.squeeze(0),
                         action,
-                        config.survival_reward,
+                        0.0,
                         current_state.squeeze(0),
                         False,
                         episode_manager.get_stats()["episode_count"],
@@ -300,6 +286,12 @@ def main():
             # Status display
             stats = episode_manager.get_stats()
             eval_tag = "[EVAL] " if stats["is_evaluating"] else ""
+
+            # Switch back to train mode when evaluation ends
+            if was_evaluating and not stats["is_evaluating"]:
+                local_model.set_train_mode()
+                print("\n[TRAIN] Switched to train mode (noisy weights for exploration)\n")
+            was_evaluating = stats["is_evaluating"]
 
             if stats["is_evaluating"]:
                 action_str = "--/--/--"
