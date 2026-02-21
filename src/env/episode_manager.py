@@ -51,8 +51,8 @@ class EpisodeManager:
         self._curr_reward = 0.0
         self._total_reward = 0.0
 
-        self._is_evaluating = True
-        self._eval_episode_count = 1
+        self._is_evaluating = False
+        self._eval_episode_count = 0
         self._eval_episodes_remaining = ctx.config.eval_episodes
         self._eval_step_count = 0
         self._best_eval_score = 0
@@ -218,6 +218,7 @@ class EpisodeManager:
         """
         if self._is_evaluating:
             self._eval_step_count += 1
+            self._curr_reward += self._ctx.config.survival_reward
             if self._eval_step_count >= self._ctx.game_config.max_eval_steps:
                 self._state = EpisodeState.EVAL_TIMEOUT_DETECTED
                 print(
@@ -228,6 +229,7 @@ class EpisodeManager:
                 return EpisodeEvent.EVAL_TIMEOUT
         else:
             self._episode_steps += 1
+            self._curr_reward += self._ctx.config.survival_reward
         return EpisodeEvent.NONE
 
     def get_stats(self) -> dict:
