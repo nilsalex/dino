@@ -208,7 +208,9 @@ def main():
             if is_action_frame:
                 transitions = buffer.get_add_count()
 
-                # NoisyNet: always greedy on noisy Q-values (no epsilon-greedy)
+                # NoisyNet: reset noise before action (per paper: "re-sampled before every action")
+                if not episode_manager.is_evaluating():
+                    local_model.reset_noise()
                 action = local_model.get_action(previous_state)
                 current_action = action
 

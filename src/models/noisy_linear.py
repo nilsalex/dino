@@ -36,7 +36,7 @@ class NoisyLinear(nn.Module):
         self.sigma_weight = nn.Parameter(torch.empty(out_features, in_features))
         self.sigma_bias = nn.Parameter(torch.empty(out_features))
 
-        # Noise buffers (not parameters - sampled each forward pass)
+        # Noise buffers (not parameters - sampled via reset_noise(), held fixed between resets)
         self.register_buffer("epsilon_input", torch.zeros(in_features))
         self.register_buffer("epsilon_output", torch.zeros(out_features))
 
@@ -59,13 +59,20 @@ class NoisyLinear(nn.Module):
         self.epsilon_input.zero_()  # type: ignore[operator]
         self.epsilon_output.zero_()  # type: ignore[operator]
 
-    def _sample_noise(self) -> None:
-        """Sample noise from standard normal distribution."""
+    def reset_noise(self) -> None:
+        """Sample new noise and store in buffers.
+
+        Must be called before forward pass to get new noise.
+        Noise is then held fixed until next reset_noise() call.
+        """
         self.epsilon_input.normal_()  # type: ignore[operator]
         self.epsilon_output.normal_()  # type: ignore[operator]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass with noisy weights during training.
+        """Forward pass using stored noise.
+
+        In training mode, uses pre-sampled noise (call reset_noise() first).
+        In eval mode, uses mean weights only (deterministic).
 
         Args:
             x: Input tensor of shape (batch, in_features).
@@ -74,7 +81,6 @@ class NoisyLinear(nn.Module):
             Output tensor of shape (batch, out_features).
         """
         if self.training:
-            self._sample_noise()
             f_input = self.epsilon_input.sign() * self.epsilon_input.abs().sqrt()  # type: ignore[operator]
             f_output = self.epsilon_output.sign() * self.epsilon_output.abs().sqrt()  # type: ignore[operator]
             weight = self.mu_weight + self.sigma_weight * f_output.outer(f_input)  # type: ignore[operator]
@@ -84,6 +90,17 @@ class NoisyLinear(nn.Module):
             bias = self.mu_bias
 
         return F.linear(x, weight, bias)
+
+    @staticmethod
+    def reset_noise_all(model: nn.Module) -> None:
+        """Reset noise for all NoisyLinear layers in a model.
+
+        Args:
+            model: PyTorch module containing NoisyLinear layers.
+        """
+        for module in model.modules():
+            if isinstance(module, NoisyLinear):
+                module.reset_noise()
 
     def get_sigma_mean(self) -> float:
         """Get mean absolute sigma value across weight and bias."""

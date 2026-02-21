@@ -75,6 +75,12 @@ class LocalInferenceModel:
         """Set model to eval mode for deterministic behavior (mean weights)."""
         self.model.eval()
 
+    def reset_noise(self) -> None:
+        """Reset noise for exploration (call before action selection)."""
+        for module in self.model.modules():
+            if isinstance(module, NoisyLinear):
+                module.reset_noise()
+
     def get_sigma_means(self) -> list[float]:
         """Get mean sigma values for each NoisyLinear layer."""
         sigma_means = []

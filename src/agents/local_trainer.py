@@ -27,7 +27,6 @@ class LocalDQNTrainer:
         self.model = self._build_model().to(self.device)
         self.target_model = self._build_model().to(self.device)
         self.target_model.load_state_dict(self.model.state_dict())
-        self.target_model.eval()
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=config.learning_rate)
         self.criterion = nn.SmoothL1Loss()
@@ -69,6 +68,10 @@ class LocalDQNTrainer:
         done_batch: list[bool],
     ) -> dict[str, float]:
         """Execute one training step."""
+        # Reset noise once per batch - held fixed across all samples
+        NoisyLinear.reset_noise_all(self.model)
+        NoisyLinear.reset_noise_all(self.target_model)
+
         states = torch.tensor(np.array(state_batch), dtype=torch.float32).to(self.device) / 255.0
         actions = torch.tensor(action_batch, dtype=torch.long).to(self.device)
         rewards = torch.tensor(reward_batch, dtype=torch.float32).to(self.device)
@@ -122,6 +125,7 @@ class LocalDQNTrainer:
 
     def get_action(self, states: torch.Tensor) -> int:
         """Get action from states (greedy)."""
+        NoisyLinear.reset_noise_all(self.model)
         with torch.no_grad():
             q_values = self.model(states)
             return q_values.argmax(dim=1).item()
