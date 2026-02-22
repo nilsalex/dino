@@ -31,10 +31,10 @@ class Config:
     gamma: float = 0.99
     sigma_init: float = 0.5  # NoisyNet sigma initialization
     use_torch_compile: bool = True  # Compile model for faster training
-    target_update_freq: int = 1000
+    target_update_freq: int = 10000
     weight_sync_freq: int = 50
     train_ratio: int = 1
-    replay_buffer_size: int = 10000
+    replay_buffer_size: int = 1000000
     min_buffer_size: int = 250
     random_exploration_warmup: bool = False  # Use uniform random actions during warmup
     checkpoint_path: Path = Path("./checkpoints")
