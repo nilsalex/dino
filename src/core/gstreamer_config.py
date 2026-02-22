@@ -12,7 +12,8 @@ class GStreamerConfig:
     source_type: Literal["v4l2", "ximage"]
     width: int
     height: int
-    fps: int
+    capture_fps: int  # Source capture framerate
+    agent_fps: int  # Output framerate to agent
     queue_max_size: int
     queue_leaky: str
     appsink_max_buffers: int = 2
@@ -43,11 +44,11 @@ class GStreamerConfig:
         return (
             f"v4l2src device={self.device} do-timestamp=true ! "
             f"videoscale ! "
-            f"video/x-raw,width={self.width},height={self.height},framerate=30/1 ! "
+            f"video/x-raw,width={self.width},height={self.height},framerate={self.capture_fps}/1 ! "
             f"queue max-size-buffers={self.queue_max_size} leaky={self.queue_leaky} ! "
             f"videoconvert ! "
             f"videorate ! "
-            f"video/x-raw,format=GRAY8,framerate={self.fps}/1 ! "
+            f"video/x-raw,format=GRAY8,framerate={self.agent_fps}/1 ! "
             f"appsink name=appsink emit-signals=true max-buffers={self.appsink_max_buffers} drop={self.appsink_drop}"
         )
 
@@ -62,7 +63,7 @@ class GStreamerConfig:
             f"ximagesrc display-name={display_name} "
             f"startx=0 starty=0 endx={self.browser_width} endy={self.browser_height} "
             f"do-timestamp=true ! "
-            f"video/x-raw,framerate=30/1 ! "
+            f"video/x-raw,framerate={self.capture_fps}/1 ! "
             f"tee name=t "
         )
 
@@ -77,7 +78,7 @@ class GStreamerConfig:
             f"video/x-raw,width={self.width},height={self.height} ! "
             f"videoconvert ! "
             f"videorate ! "
-            f"video/x-raw,format=GRAY8,framerate={self.fps}/1 ! "
+            f"video/x-raw,format=GRAY8,framerate={self.agent_fps}/1 ! "
             f"appsink name=appsink emit-signals=true max-buffers={self.appsink_max_buffers} drop={self.appsink_drop} "
         )
 

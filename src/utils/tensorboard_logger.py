@@ -1,13 +1,19 @@
+from datetime import datetime
 from pathlib import Path
 
 from torch.utils.tensorboard import SummaryWriter
 
 
 class TensorBoardLogger:
-    def __init__(self, log_dir: str = "runs"):
+    def __init__(self, log_dir: str = "runs", run_name: str | None = None):
         self.log_dir = Path(log_dir)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.writer = SummaryWriter(log_dir=str(self.log_dir))
+
+        # Create timestamp-based subdirectory for this run
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.run_dir = self.log_dir / (run_name or timestamp)
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+
+        self.writer = SummaryWriter(log_dir=str(self.run_dir))
 
     def log_episode(self, episode_idx: int, reward: float, length: int):
         self.writer.add_scalar("episode/reward", reward, episode_idx)
@@ -89,6 +95,28 @@ class TensorBoardLogger:
         # Also log overall mean
         if sigma_means:
             self.writer.add_scalar("sigma/mean", sum(sigma_means) / len(sigma_means), step)
+
+    def log_train_latency(self, step: int, latency_ms: float, latency_mean_ms: float) -> None:
+        """Log training step latency.
+
+        Args:
+            step: Current step count.
+            latency_ms: Last training step latency in milliseconds.
+            latency_mean_ms: Rolling mean latency (last 100 steps).
+        """
+        self.writer.add_scalar("train/latency_ms", latency_ms, step)
+        self.writer.add_scalar("train/latency_mean_ms", latency_mean_ms, step)
+
+    def log_inference_latency(self, step: int, latency_ms: float, latency_mean_ms: float) -> None:
+        """Log inference latency.
+
+        Args:
+            step: Current step count.
+            latency_ms: Last inference latency in milliseconds.
+            latency_mean_ms: Rolling mean latency (last 100 steps).
+        """
+        self.writer.add_scalar("inference/latency_ms", latency_ms, step)
+        self.writer.add_scalar("inference/latency_mean_ms", latency_mean_ms, step)
 
     def close(self):
         self.writer.close()

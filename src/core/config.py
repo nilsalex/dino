@@ -18,7 +18,8 @@ class Config:
     channels: int = 1
     game_name: str = os.getenv("GAME", "lane_switcher")
     video_device: str = os.getenv("VIDEO_DEVICE", "/dev/video0")
-    fps: int = 10
+    capture_fps: int = int(os.getenv("CAPTURE_FPS", "30"))  # Source capture framerate
+    agent_fps: int = int(os.getenv("AGENT_FPS", "10"))  # Output framerate to agent
     queue_max_size: int = 2
     queue_leaky: str = "downstream"
     frame_queue_maxsize: int = 2
@@ -28,7 +29,8 @@ class Config:
     learning_rate: float = 1e-4
     batch_size: int = 32
     gamma: float = 0.99
-    sigma_init: float = 1.0  # NoisyNet sigma initialization
+    sigma_init: float = 0.5  # NoisyNet sigma initialization
+    use_torch_compile: bool = True  # Compile model for faster training
     target_update_freq: int = 1000
     weight_sync_freq: int = 50
     train_ratio: int = 1

@@ -76,7 +76,7 @@ def main():
             print(f"UDP agent view: port {config.udp_port_agent}")
 
     print("Creating local trainer...")
-    local_trainer = LocalDQNTrainer(config, game_config.n_actions)
+    local_trainer = LocalDQNTrainer(config, game_config.n_actions, game_config.frame_stack)
 
     print("Initializing thread-safe experience buffer...")
     buffer = ThreadSafeExperienceBuffer(config)
@@ -87,6 +87,7 @@ def main():
         device=config.device or torch.device("cpu"),
         frame_stack=game_config.frame_stack,
         sigma_init=config.sigma_init,
+        use_torch_compile=config.use_torch_compile,
     )
 
     if config.headless:
@@ -154,7 +155,7 @@ def main():
     frame_skip_counter = 0
     current_action: int | None = None
 
-    print(f"TensorBoard logging initialized at {tb_logger.log_dir}")
+    print(f"TensorBoard logging initialized at {tb_logger.run_dir}")
 
     try:
         while episode_manager.get_stats()["episode_count"] < config.max_episodes:
@@ -285,6 +286,20 @@ def main():
                     q_mean=training_stats["q_mean"],
                     q_max=None,
                 )
+                # Log latency metrics
+                if training_stats["train_latency_ms"] > 0:
+                    tb_logger.log_train_latency(
+                        transitions,
+                        training_stats["train_latency_ms"],
+                        training_stats["train_latency_mean_ms"],
+                    )
+                inference_stats = local_model.get_inference_latency_stats()
+                if inference_stats["latency_ms"] > 0:
+                    tb_logger.log_inference_latency(
+                        transitions,
+                        inference_stats["latency_ms"],
+                        inference_stats["latency_mean_ms"],
+                    )
 
             if new_transition and not episode_manager.is_evaluating() and transitions % 100 == 0:
                 tb_logger.log_system_metrics(

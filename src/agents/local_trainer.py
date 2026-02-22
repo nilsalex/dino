@@ -31,6 +31,26 @@ class LocalDQNTrainer:
         self.optimizer = optim.Adam(self.model.parameters(), lr=config.learning_rate)
         self.criterion = nn.SmoothL1Loss()
 
+        # Compile models for faster training (PyTorch 2.0+)
+        if config.use_torch_compile:
+            self.model = torch.compile(self.model)  # type: ignore[assignment]
+            self.target_model = torch.compile(self.target_model)  # type: ignore[assignment]
+            self.optimizer = optim.Adam(self.model.parameters(), lr=config.learning_rate)  # type: ignore[union-attr]
+
+            # Warmup: trigger compilation at startup with full training step
+            # Use actual batch size and frame_stack to avoid recompilation
+            print("Compiling models...")
+            batch_size = config.batch_size
+            dummy_state = np.zeros((frame_stack, 84, 84), dtype=np.uint8)
+            self.train_step(
+                [dummy_state] * batch_size,
+                [0] * batch_size,
+                [0.0] * batch_size,
+                [dummy_state] * batch_size,
+                [False] * batch_size,
+            )
+            print("Models compiled")
+
         print(f"Local trainer initialized on {self.device}")
 
     def _build_model(self) -> nn.Module:
@@ -69,8 +89,8 @@ class LocalDQNTrainer:
     ) -> dict[str, float]:
         """Execute one training step."""
         # Reset noise once per batch - held fixed across all samples
-        NoisyLinear.reset_noise_all(self.model)
-        NoisyLinear.reset_noise_all(self.target_model)
+        NoisyLinear.reset_noise_all(self.model)  # type: ignore[arg-type]
+        NoisyLinear.reset_noise_all(self.target_model)  # type: ignore[arg-type]
 
         states = torch.tensor(np.array(state_batch), dtype=torch.float32).to(self.device) / 255.0
         actions = torch.tensor(action_batch, dtype=torch.long).to(self.device)
@@ -115,47 +135,41 @@ class LocalDQNTrainer:
 
     def update_target(self) -> None:
         """Update target network weights."""
-
-        self.target_model.load_state_dict(self.model.state_dict())
+        self.target_model.load_state_dict(self.model.state_dict())  # type: ignore[union-attr]
 
     def get_model_state(self) -> dict[str, torch.Tensor]:
         """Get current model state dict."""
-
-        return {k: v.cpu() for k, v in self.model.state_dict().items()}
+        return {k: v.cpu() for k, v in self.model.state_dict().items()}  # type: ignore[union-attr]
 
     def get_action(self, states: torch.Tensor) -> int:
         """Get action from states (greedy)."""
-        NoisyLinear.reset_noise_all(self.model)
+        NoisyLinear.reset_noise_all(self.model)  # type: ignore[arg-type]
         with torch.no_grad():
-            q_values = self.model(states)
+            q_values = self.model(states)  # type: ignore[misc]
             return q_values.argmax(dim=1).item()
 
     def state_dict(self) -> dict[str, torch.Tensor]:
         """Get model state dict for saving."""
-
-        return self.model.state_dict()
+        return self.model.state_dict()  # type: ignore[union-attr]
 
     def load_state_dict(self, state_dict: dict[str, torch.Tensor]) -> None:
         """Load model state dict."""
-
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict)  # type: ignore[union-attr]
 
     def save_checkpoint(self, path: str, step_count: int) -> None:
         """Save model checkpoint with optimizer state."""
-
         checkpoint = {
             "step_count": step_count,
-            "model_state_dict": self.model.state_dict(),
-            "target_model_state_dict": self.target_model.state_dict(),
+            "model_state_dict": self.model.state_dict(),  # type: ignore[union-attr]
+            "target_model_state_dict": self.target_model.state_dict(),  # type: ignore[union-attr]
             "optimizer_state_dict": self.optimizer.state_dict(),
         }
         torch.save(checkpoint, path)
 
     def load_checkpoint(self, path: str) -> int:
         """Load model checkpoint and return step count."""
-
         checkpoint = torch.load(path, map_location=self.device)
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        self.target_model.load_state_dict(checkpoint["target_model_state_dict"])
+        self.model.load_state_dict(checkpoint["model_state_dict"])  # type: ignore[union-attr]
+        self.target_model.load_state_dict(checkpoint["target_model_state_dict"])  # type: ignore[union-attr]
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         return checkpoint["step_count"]

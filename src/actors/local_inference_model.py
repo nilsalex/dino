@@ -22,6 +22,7 @@ class LocalInferenceModel:
         device: torch.device,
         frame_stack: int = 4,
         sigma_init: float = 0.5,
+        use_torch_compile: bool = False,
     ):
         self.n_actions = n_actions
         self.device = device
@@ -29,6 +30,16 @@ class LocalInferenceModel:
         self.sigma_init = sigma_init
         self.model = self._build_model().to(self.device)
         self.model.train()
+        self._inference_latencies: list[float] = []
+
+        # Compile model for faster inference (PyTorch 2.0+)
+        if use_torch_compile:
+            self.model = torch.compile(self.model)  # type: ignore[assignment]
+
+            # Warmup: trigger compilation at startup
+            dummy_input = torch.zeros(1, frame_stack, 84, 84, device=self.device)
+            with torch.no_grad():
+                _ = self.model(dummy_input)
 
     def _build_model(self) -> nn.Module:
         class CNN(nn.Module):
@@ -55,9 +66,16 @@ class LocalInferenceModel:
 
     def get_action(self, state: torch.Tensor) -> int:
         """Get action from a single state tensor without gradients."""
+        import time
+
+        start = time.perf_counter()
         with torch.no_grad():
-            q_values = self.model(state)
-            return q_values.argmax(dim=1).item()
+            q_values = self.model(state)  # type: ignore[misc]
+            action = q_values.argmax(dim=1).item()
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        self._inference_latencies.append(elapsed_ms)
+
+        return action
 
     def update_state_dict(self, state_dict: dict | list) -> None:
         """Update model weights from trainer."""
@@ -84,10 +102,24 @@ class LocalInferenceModel:
     def get_sigma_means(self) -> list[float]:
         """Get mean sigma values for each NoisyLinear layer."""
         sigma_means = []
-        for module in self.model.modules():
+        for module in self.model.modules():  # type: ignore[union-attr]
             if isinstance(module, NoisyLinear):
                 sigma_means.append(module.get_sigma_mean())
         return sigma_means
+
+    def get_inference_latency_stats(self) -> dict[str, float]:
+        """Get inference latency statistics.
+
+        Returns:
+            Dictionary with latency_ms and latency_mean_ms.
+        """
+        if not self._inference_latencies:
+            return {"latency_ms": 0.0, "latency_mean_ms": 0.0}
+
+        return {
+            "latency_ms": self._inference_latencies[-1],
+            "latency_mean_ms": sum(self._inference_latencies[-100:]) / min(len(self._inference_latencies), 100),
+        }
 
     def state_dict(self) -> dict:
         """Get current model state dict."""

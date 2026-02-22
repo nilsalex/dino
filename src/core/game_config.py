@@ -44,7 +44,7 @@ GAME_CONFIGS: dict[str, GameConfig] = {
     ),
     "lane_switcher": GameConfig(
         n_actions=3,
-        frame_stack=1,
+        frame_stack=4,
         frame_skip=5,
         action_keys=[0, 105, 106],
         action_names=["DO_NOTHING", "PRESS_LEFT", "PRESS_RIGHT"],

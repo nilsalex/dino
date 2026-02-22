@@ -55,6 +55,8 @@ class LocalTrainingThread:
         self.weight_sync_count: int = 0
         self._pending_losses: list[dict[str, float]] = []
         self._last_add_count: int = 0
+        self.last_train_latency_ms: float = 0.0
+        self._train_latencies: list[float] = []
 
     def start(self) -> None:
         """Start training thread."""
@@ -119,7 +121,10 @@ class LocalTrainingThread:
         next_state_batch = [ns.detach().cpu().numpy() for ns in next_states_list]
         done_batch = dones_list
 
+        start_time = time.perf_counter()
         loss_info = self.trainer.train_step(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        loss_info["latency_ms"] = elapsed_ms
 
         self._pending_losses.append(loss_info)
 
@@ -135,6 +140,9 @@ class LocalTrainingThread:
             self.last_q_max = loss_info.get("q_max", 0.0)
             self.last_target_mean = loss_info.get("target_mean", 0.0)
             self.training_count += 1
+            if "latency_ms" in loss_info:
+                self._train_latencies.append(loss_info["latency_ms"])
+                self.last_train_latency_ms = loss_info["latency_ms"]
 
         self._pending_losses.clear()
 
@@ -158,6 +166,9 @@ class LocalTrainingThread:
         Returns:
             Dictionary with training stats.
         """
+        mean_latency = 0.0
+        if self._train_latencies:
+            mean_latency = sum(self._train_latencies[-100:]) / min(len(self._train_latencies), 100)
 
         return {
             "last_loss": self.last_loss,
@@ -166,4 +177,6 @@ class LocalTrainingThread:
             "target_mean": self.last_target_mean,
             "training_count": self.training_count,
             "weight_sync_count": self.weight_sync_count,
+            "train_latency_ms": self.last_train_latency_ms,
+            "train_latency_mean_ms": mean_latency,
         }
