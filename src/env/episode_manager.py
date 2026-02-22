@@ -51,8 +51,8 @@ class EpisodeManager:
         self._curr_reward = 0.0
         self._total_reward = 0.0
 
-        self._is_evaluating = True
-        self._eval_episode_count = 1
+        self._is_evaluating = False
+        self._eval_episode_count = 0
         self._eval_episodes_remaining = ctx.config.eval_episodes
         self._eval_step_count = 0
         self._best_eval_score = 0

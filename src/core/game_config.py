@@ -42,6 +42,16 @@ GAME_CONFIGS: dict[str, GameConfig] = {
         frame_skip_mode="single",
         max_eval_steps=500,
     ),
+    "lane_switcher": GameConfig(
+        n_actions=3,
+        frame_stack=1,
+        frame_skip=5,
+        action_keys=[0, 105, 106],
+        action_names=["DO_NOTHING", "PRESS_LEFT", "PRESS_RIGHT"],
+        action_keys_str=["", "a", "d"],
+        frame_skip_mode="single",
+        max_eval_steps=500,
+    ),
 }
 
 
@@ -49,7 +59,7 @@ def get_game_config(game_name: str = "dino") -> GameConfig:
     """Get configuration for a specific game.
 
     Args:
-        game_name: Name of the game ("dino" or "reaction").
+        game_name: Name of the game ("dino", "reaction", or "lane_switcher").
 
     Returns:
         GameConfig object with game-specific settings.
